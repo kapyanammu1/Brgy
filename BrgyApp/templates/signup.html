@@ -65,7 +65,8 @@
                   </div>
                   <form method="post" action="."  class="row g-3 needs-validation" novalidate>
                     {% csrf_token %}
-                    <div class="col-12">
+                    {{ form.as_p }}
+                    <!-- <div class="col-12">
                       <label for="yourName" class="form-label">Your Username</label>
                       {{ form.username }}
                     </div>
@@ -85,7 +86,7 @@
                                 {{ field.errors }}
                             {% endfor %}
                         </div>
-                    {% endif %}
+                    {% endif %} -->
                     <div class="col-12">
                       <button class="btn btn-primary w-100" type="submit">Create Account</button>
                     </div>

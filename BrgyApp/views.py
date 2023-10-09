@@ -1,18 +1,22 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import CertTribal, Brgy, Purok, Resident, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertResidency, CertGoodMoral, CertIndigency, CertNonOperation, CertSoloParent
-from .forms import SignupForm, CertTribalForm, BrgyForm, PurokForm, ResidentForm, HouseholdForm, DeceasedForm, OfwForm, BlotterForm, BusinessForm, BrgyClearanceForm, BusinessClearanceForm, CertGoodMoralForm, CertIndigencyForm, CertNonOperationForm, CertResidencyForm, CertSoloParentForm
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.contrib import messages
+from .models import CertTribal, Brgy, Purok, Resident, Brgy_Officials, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertResidency, CertGoodMoral, CertIndigency, CertNonOperation, CertSoloParent
+from .forms import CustomUserChangeForm, SignupForm, CertTribalForm, BrgyForm, PurokForm, ResidentForm, brgyOfficialForm, DeceasedForm, OfwForm, BlotterForm, BusinessForm, BrgyClearanceForm, BusinessClearanceForm, CertGoodMoralForm, CertIndigencyForm, CertNonOperationForm, CertResidencyForm, CertSoloParentForm
 from django.http import JsonResponse, Http404, HttpResponse
 from .excel_import import import_residents_from_excel
 from io import BytesIO
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from .utils import render_to_pdf
 from django.views.generic import View
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from reportlab.lib import colors
 import os
-from datetime import datetime, timedelta
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q, ExpressionWrapper, F, IntegerField, Value, When, Case
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 # Create your views here.
@@ -31,6 +35,48 @@ def Signup(request):
     else:
         form = SignupForm()
     return render(request, 'signup.html', {'form': form})
+    
+
+def Users(request):
+    users=User.objects.all()
+    return render (request,'Users.html',{'users' : users })
+
+def AdEdUsers(request, pk):
+    try:
+        user = get_object_or_404(User, pk=pk)
+        if request.method == 'POST':
+            form = CustomUserChangeForm(request.POST, request.FILES, instance=user)
+            if form.is_valid():
+                form.save()
+                return redirect('Users')
+        else:
+            form = CustomUserChangeForm(instance=user)
+        return render(request, 'AdEdusers.html', {'form': form})
+    except Http404:  
+        if request.method == 'POST':
+            form = SignupForm(request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect('Users')
+        else:
+            form = SignupForm()
+        return render(request, 'AdEdusers.html', {'form': form})
+
+def change_password(request):
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # Important to update the session with the new password
+            messages.success(request, 'Your password was successfully updated!')
+            return redirect('password_change_done')
+        else:
+            messages.error(request, 'Please correct the error below.')
+    else:
+        form = PasswordChangeForm(request.user)
+    return render(request, 'change_password.html', {
+        'form': form
+    })
 
 @login_required
 def index(request):     
@@ -114,33 +160,25 @@ def index(request):
     business_inactive_count = business.filter(status='INACTIVE').count()
 
     context = {
-        'resident': resident,
-        'household': household,
-        'resident_count': resident_count,
-        'blotter': blotter,
-        'business_active_count': business_active_count,
-        'business_inactive_count': business_inactive_count,
-        'brgyClearance_total': brgyClearance_total,
-        'businessClearance_total': businessClearance_total,
-        'residency_total': residency_total,
-        'indigency_total': indigency_total,
-        'soloparent_total': soloparent_total,
-        'goodmoral_total': goodmoral_total,
-        'nonoperation_total': nonoperation_total,
-        'tribal_total': tribal_total,
-        'months': months,
-        'thisYear': thisYear,
-        'series1': series1,
-        'series2': series2,
-        'series3': series3,
-        'series4': series4,
-        'series5': series5,
-        'series6': series6,
-        'series7': series7,
-        'series8': series8,
+        'resident': resident,'household': household,'resident_count': resident_count,
+        'blotter': blotter,'business_active_count': business_active_count,
+        'business_inactive_count': business_inactive_count,'brgyClearance_total': brgyClearance_total,
+        'businessClearance_total': businessClearance_total,'residency_total': residency_total,
+        'indigency_total': indigency_total,'soloparent_total': soloparent_total,
+        'goodmoral_total': goodmoral_total,'nonoperation_total': nonoperation_total,
+        'tribal_total': tribal_total,'months': months,
+        'thisYear': thisYear,'series1': series1,
+        'series2': series2,'series3': series3,'series4': series4,
+        'series5': series5,'series6': series6,
+        'series7': series7,'series8': series8,
         'resident_graph_data': resident_graph_data,
     }
     return render(request, 'index.html', context)
+
+def calculate_age(birthdate):
+    today = date.today()
+    age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
+    return age
 
 def get_filtered_clearance_data(request):
     today = datetime.now()
@@ -212,11 +250,12 @@ class GeneratePDF(View):
         return HttpResponse(pdf, content_type='application/pdf')
 
 def report_header(p, y_position):
+    brgy = Brgy.objects.first()  
     # def draw_title(y_position, line_height):
     title_header1 = 'Republic of the Philippines'
     title_header2 = 'Province of Cagayan'
-    title_header3 = 'Municipality of Penablanca'
-    title_header4 = 'BARANGAY CAMASI'
+    title_header3 = f'Municipality of {brgy.municipality}'
+    title_header4 = f'BARANGAY {brgy.brgy_name.upper()}'
     #title = "RESIDENTS LIST"
     p.setFont("Helvetica", 11)  
     p.drawCentredString(290, 800, title_header1)
@@ -227,26 +266,86 @@ def report_header(p, y_position):
     # image_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'media\item_images\brgy_logo.png')
     app_directory = os.path.dirname(os.path.abspath(__file__))
     project_directory = os.path.dirname(app_directory)
-    image_path = os.path.join(project_directory, 'media', 'item_images', 'brgy_logo.png')
+    image_path = os.path.join(project_directory, 'media', 'item_images', os.path.basename(brgy.image.name))
     # Embed the image in the PDF
     p.drawImage(image_path, 125, 743, width=70, height=70)
 
     return p
 
-def report_body(p, y_position, line_height):
-    residents = Resident.objects.all()
+def report_header_landscape(p, y_position):
+    brgy = Brgy.objects.first()
+    # def draw_title(y_position, line_height):
+    title_header1 = 'Republic of the Philippines'
+    title_header2 = 'Province of Cagayan'
+    title_header3 = f'Municipality of {brgy.municipality}'
+    title_header4 = f'BARANGAY {brgy.brgy_name.upper()}'
+    #title = "RESIDENTS LIST"
+    p.setFont("Helvetica", 11)  
+    p.drawCentredString(440, 800 - 240, title_header1)
+    p.drawCentredString(440, 788 - 240, title_header2)
+    p.setFont("Helvetica", 13) 
+    p.drawCentredString(440, 768 - 240, title_header3)
+    p.drawCentredString(440, 748 - 240, title_header4)
+    # image_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'media\item_images\brgy_logo.png')
+    app_directory = os.path.dirname(os.path.abspath(__file__))
+    project_directory = os.path.dirname(app_directory)
+    image_path = os.path.join(project_directory, 'media', 'item_images', os.path.basename(brgy.image.name))
+    # Embed the image in the PDF
+    p.drawImage(image_path, 275, 743 - 240, width=70, height=70)
+
+    return p
+
+def report_body(p, y_position, line_height, purok_id, residenden):
+    titulo = ""
+    if purok_id != '0':
+        if residenden == "Sr":
+            residents = Resident.objects.filter(Q(purok=purok_id) & Q(birth_date__lt=date.today() - relativedelta(years=+60)))
+            titulo = "All Senior Citizens in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        elif residenden == "Solo":
+            residents = Resident.objects.filter(Q(purok=purok_id) & Q(solo_parent=True))
+            titulo = "All Solo Parents in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        elif residenden == "pwd":
+             residents = Resident.objects.filter(Q(purok=purok_id) & Q(pwd=True))
+             titulo = "All Persons with disability in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        elif residenden == "voter":
+            residents = Resident.objects.filter(Q(purok=purok_id) & Q(voter=True))
+            titulo = "All Registered Voters in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        else:
+            residents = Resident.objects.filter(purok=purok_id)
+            titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        # residents = Resident.objects.filter(purok=purok_id)
+    else:
+        if residenden == "Sr":
+            residents = Resident.objects.filter(birth_date__lt=date.today() - relativedelta(years=+60)) 
+            titulo = "All Senior Citizens"
+        elif residenden == "Solo":
+            residents = Resident.objects.filter(solo_parent=True)
+            titulo = "All Solo Parents"
+        elif residenden == "pwd":
+             residents = Resident.objects.filter(pwd=True)
+             titulo = "All Persons with disability"
+        elif residenden == "voter":
+            residents = Resident.objects.filter(voter=True)
+            titulo = "All Registered Voters"
+        else:
+            residents = Resident.objects.all()
+            titulo =""
+  
+    
+    # residents = Resident.objects.all()
     total = residents.count()
     current_date = datetime.now().date()
     def draw_header():
         p.setFont("Helvetica-Bold", 16) 
-        p.drawCentredString(290, y_position + 50, "RESIDENTS LIST")
-        
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "RESIDENTS LIST")          
         p.setFont("Helvetica", 12)
         p.drawString(50, y_position + 20, f"Total Count: {total}")
         p.drawString(450, y_position + 20, f"As of: {current_date}")
         p.setFont("Helvetica-Bold", 12)
         p.line(50, y_position + 15, 550, y_position + 15)
         p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "AGE")
         p.drawString(270, y_position, "GENDER")
         p.drawString(340, y_position, "ADDRESS")
         p.line(50, y_position - 5, 550, y_position - 5)    
@@ -265,58 +364,721 @@ def report_body(p, y_position, line_height):
 
         p.setFont("Helvetica", 10)
         p.drawString(50, y_position, f"{i}. {resident.f_name} {resident.l_name}")
+        p.drawString(230, y_position, f"{calculate_age(resident.birth_date)}")
         p.drawString(270, y_position, f"{resident.gender}")
         p.drawString(340, y_position, f"{resident.address}")
         # p.line(50, y_position - 5, 550, y_position - 5)
         y_position -= line_height
     return p
 
+def report_body_brgyClearance_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    brgyClearance = BrgyClearance.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = brgyClearance.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = brgyClearance.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "BRGY CLEARANCE LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(brgyClearance, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_Indigency_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certIndigency = CertIndigency.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certIndigency.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certIndigency.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF INDIGENCY LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certIndigency, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_SoloParent_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certSoloParent = CertSoloParent.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certSoloParent.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certSoloParent.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF SOLO PARENT LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certSoloParent, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_GoodMoral_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certGoodMoral = CertGoodMoral.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certGoodMoral.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certGoodMoral.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF GOOD MORAL LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certGoodMoral, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_Tribal_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certTribal = CertTribal.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certTribal.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certTribal.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF TRIBAL MEMBERSHIP LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certTribal, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_NonOperation_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certNonOperation = CertNonOperation.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certNonOperation.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certNonOperation.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF NON-OPERATION OF BUSINESS LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "BUSINESS NAME")
+        p.drawString(200, y_position, "CEASED DATE")
+        p.drawString(300, y_position, "PURPOSE")
+        p.drawString(380, y_position, "DATE CREATED")
+        p.drawString(495, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certNonOperation, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.business}")
+        p.drawString(200, y_position, f"{clearance.ceased_date.strftime('%Y-%m-%d')}")
+        p.drawString(300, y_position, f"{clearance.purpose}")
+        p.drawString(380, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(495, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_Residency_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    certResidency = CertResidency.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = certResidency.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = certResidency.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "CERTIFICATE OF RESIDENCY LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(230, y_position, "PURPOSE")
+        p.drawString(320, y_position, "DATE CREATED")
+        p.drawString(450, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(certResidency, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.resident}")
+        p.drawString(230, y_position, f"{clearance.purpose}")
+        p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_businessClearance_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    businessClearance = BusinessClearance.objects.filter(date_created__range=[dateFrom, dateTo])
+    total_amount = businessClearance.aggregate(total_amount=Sum('or_amount'))
+    total_amount_value = total_amount.get('total_amount', 0)
+    total = businessClearance.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "BUSINESS CLEARANCE LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "BUSINESS NAME")
+        p.drawString(230, y_position, "BUSINESS TYPE")
+        p.drawString(350, y_position, "DATE CREATED")
+        p.drawString(470, y_position, "AMOUNT")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, clearance in enumerate(businessClearance, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {clearance.business}")
+        p.drawString(230, y_position, f"{clearance.business.business_type}")
+        p.drawString(350, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(470, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_household(p, y_position, line_height, purok_id):
+    titulo = ""
+    if purok_id != '0':
+            residents = Resident.objects.filter(purok=purok_id).order_by("house_no")
+            titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        # residents = Resident.objects.filter(purok=purok_id)
+    else:
+            residents = Resident.objects.all().order_by("house_no")
+            titulo = ""
+    
+    # residents = Resident.objects.all()
+    total = residents.count()
+    current_date = datetime.now().date()
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "HOUSEHOLD LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(450, y_position + 20, f"As of: {current_date}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "HOUSE NO.")
+        p.drawString(160, y_position, "NAME")
+        p.drawString(300, y_position, "AGE")
+        p.drawString(360, y_position, "GENDER")
+        p.drawString(440, y_position, "PUROK/ZONE")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    previous_house_no = None  # Initialize previous_house_no
+    for i, resident in enumerate(residents, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {resident.house_no}")
+        p.drawString(160, y_position, f"{resident.f_name} {resident.l_name}")
+        p.drawString(300, y_position, f"{calculate_age(resident.birth_date)}")
+        p.drawString(360, y_position, f"{resident.gender}")
+        p.drawString(440, y_position, f"{resident.purok}")
+
+        if previous_house_no != f"{resident.house_no}":
+            p.line(50, y_position + 15, 550, y_position + 15)
+            previous_house_no = f"{resident.house_no}"
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_blotter(p, y_position, line_height, status):
+    titulo = ""
+    if status != 'all':
+        if status == "Pending":
+            blotter = Blotter.objects.filter(status=status)
+            titulo = "Pending"
+        else:
+            blotter = Blotter.objects.filter(status=status)
+            titulo = "Solved"
+        # residents = Resident.objects.filter(purok=purok_id)
+    else:
+            blotter = Blotter.objects.all()
+            titulo =""
+  
+    # residents = Resident.objects.all()
+    total = blotter.count()
+    current_date = datetime.now().date()
+    def draw_header():
+        p.drawCentredString(440, y_position + 37, titulo)
+        p.setFont("Helvetica-Bold", 16)    
+        p.drawCentredString(440, y_position + 55, "BLOTTER LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(700, y_position + 20, f"As of: {current_date}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 800, y_position + 15)
+        p.drawString(50, y_position, "Compainant")
+        p.drawString(200, y_position, "Respondent")
+        p.drawString(360, y_position, "Statement")
+        p.drawString(560, y_position, "Location")
+        p.drawString(720, y_position, "Date")
+        p.line(50, y_position - 5, 800, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, blotter in enumerate(blotter, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {blotter.complainants}")
+        p.drawString(200, y_position, f"{blotter.respondents}")
+        p.drawString(360, y_position, f"{blotter.statement}")
+        p.drawString(560, y_position, f"{blotter.location}")
+        p.drawString(720, y_position, f"{blotter.date_created.strftime('%Y-%m-%d')}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_ofw(p, y_position, line_height, purok_id):
+    titulo = ""
+    if purok_id != '0':
+        ofw = Ofw.objects.filter(resident__purok=purok_id)
+        titulo = "All OFW in " + Purok.objects.filter(pk=purok_id).first().purok_name
+    else:
+        ofw = Ofw.objects.all()
+        titulo = ""
+  
+    # residents = Resident.objects.all()
+    total = ofw.count()
+    current_date = datetime.now().date()
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "OFW LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(450, y_position + 20, f"As of: {current_date}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(240, y_position, "PASSPORT NUMBER")
+        p.drawString(430, y_position, "COUNTRY")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, resident in enumerate(ofw, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {resident.resident}")
+        p.drawString(240, y_position, f"{resident.passport_no}")
+        p.drawString(430, y_position, f"{resident.country}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_deceased(p, y_position, line_height, purok_id):
+    titulo = ""
+    if purok_id != '0':
+        deceased = Deceased.objects.filter(resident__purok=purok_id)
+        titulo = "All Deceased in " + Purok.objects.filter(pk=purok_id).first().purok_name
+    else:
+        deceased = Deceased.objects.all()
+        titulo = ""
+  
+    # residents = Resident.objects.all()
+    total = deceased.count()
+    current_date = datetime.now().date()
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "DECEASED LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(450, y_position + 20, f"As of: {current_date}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "NAME")
+        p.drawString(260, y_position, "DATE OF DEATH")
+        p.drawString(400, y_position, "CAUSE OF DEATH")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, resident in enumerate(deceased, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {resident.resident}")
+        p.drawString(260, y_position, f"{resident.date_of_death}")
+        p.drawString(400, y_position, f"{resident.cause_of_death}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_business(p, y_position, line_height, purok_id, status):
+    titulo = ""
+    if purok_id != '0':
+        if status == "ACTIVE":
+            business = Business.objects.filter(Q(purok=purok_id) & Q(status='ACTIVE'))
+            titulo = "All Active Business in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        elif status == "INACTIVE":
+            business = Business.objects.filter(Q(purok=purok_id) & Q(status='INACTIVE'))
+            titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        else:
+            business = Business.objects.filter(purok=purok_id)
+            titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        # residents = Resident.objects.filter(purok=purok_id)
+    else:
+        if status == "ACTIVE":
+            business = Business.objects.filter(status='ACTIVE')
+            titulo = "All Active Business"
+        elif status == "INACTIVE":
+            business = Business.objects.filter(status='INACTIVE')
+            titulo = "All Inactive Business"
+        else:
+            business = Business.objects.all()
+            titulo = ""
+  
+    # residents = Resident.objects.all()
+    total = business.count()
+    current_date = datetime.now().date()
+    def draw_header():
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.setFont("Helvetica-Bold", 16)      
+        p.drawCentredString(290, y_position + 55, "BUSINESS LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        p.drawString(450, y_position + 20, f"As of: {current_date}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "BUSINESS NAME")
+        # p.drawString(180, y_position, "BUSINESS TYPE")
+        p.drawString(190, y_position, "ADDRESS")
+        p.drawString(400, y_position, "PROPRIETOR'S NAME")
+        
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, business in enumerate(business, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {business.business_name}")
+        # p.drawString(180, y_position, f"{business.business_type}")
+        p.drawString(190, y_position, f"{business.address}")
+        p.drawString(400, y_position, f"{business.proprietor}")
+        
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
 def report_brgyOfficials(p, y_position, footer_text):
+    officials = Brgy_Officials.objects.first()  
     twelve_space = 12
     p.setFont("Helvetica-Bold", 11)
-    p.drawCentredString(115, y_position, "Barangay Captain")
+    p.drawCentredString(115, y_position, f"{officials.brgy_Captain}")
     p.setFont("Helvetica", 10)
     p.drawString(75, y_position - twelve_space, "Punong Barangay")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 4), "Kagawad 1")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 3), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 7), "Kagawad 2")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 6), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 10), "Kagawad 3")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 9), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 13), "Kagawad 4")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 12), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 16), "Kagawad 5")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 15), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 19), "Kagawad 6")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 18), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 22), "Kagawad 7")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 21), "Barangay Kagawad")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 25), "Sk Chairman")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 24), "SK Chairman")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 28), "Secretary")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 27), "Barangay Secretary")
-    p.setFont("Helvetica", 11)
-    p.drawCentredString(115, y_position - (twelve_space * 31), "Treasurer")
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(75, y_position - (twelve_space * 30), "Barangay Treasurer")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 3), f"{officials.kagawad1}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 4), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 6), f"{officials.kagawad2}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 7), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 9), f"{officials.kagawad3}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 10), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 12), f"{officials.kagawad4}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 13), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 15), f"{officials.kagawad5}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 16), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 18), f"{officials.kagawad6}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 19), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 21), f"{officials.kagawad7}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 22), "Barangay Kagawad")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 24), f"{officials.sk}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 25), "SK Chairman")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 27), f"{officials.secretary}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 28), "Barangay Secretary")
+    p.setFont("Helvetica-Bold", 11)
+    p.drawCentredString(115, y_position - (twelve_space * 30), f"{officials.treasurer}")
+    p.setFont("Helvetica", 10)
+    p.drawString(70, y_position - (twelve_space * 31), "Barangay Treasurer")
     p.setFont("Helvetica-Bold", 10)
     p.drawCentredString(115, footer_text, "Not valid without dry seal")
     p.setFont("Helvetica", 10)
@@ -359,7 +1121,7 @@ def report_body_brgyClearance(p, y_position, line_height, pk):
             " ",
             f"CIVIL STATUS: {resident.civil_status}",
             " ",
-            f"NATIONALITY: ",
+            f"NATIONALITY: {resident.citizenship}",
             " ",
             f"PURPOSE: {brgyclearance.purpose}",
             " ",
@@ -416,7 +1178,6 @@ def report_body_tribal(p, y_position, line_height, pk):
         return f"{day}{suffix}"
     tribal = CertTribal.objects.get(pk=pk)
     resident = tribal.resident
-    mother = tribal.mother
     current_date = datetime.now().date()
     formatted_day = get_day_with_suffix(current_date.day)
     p.setStrokeColor(colors.black)  # Set the frame color
@@ -434,30 +1195,41 @@ def report_body_tribal(p, y_position, line_height, pk):
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
         
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
+        
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"              This is to certify that, Mr/Mrs. {tribal.resident},",
-            f" 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} and a resident of Camasi,",
-            f"Peñablanca, Cagayan, {resident.purok} Belongs to {tribal.tribe} of ",
-            "INDIGENOUS CULTURAL COMMUNITTIES/INDIGENOUS PEOPLE",
-            " ",
-            f"              This is to certify further that {tribal.mother}",
-            f"mother of {tribal.resident} as well as their ancestors are ",
-            f"all recognized members of {tribal.tribe} known to be natives",
-            "of Camasi Peñablanca, Cagayan",
-            " ",
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
+            f"This is to certify that, Mr/Mrs. {tribal.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} and a resident of Camasi, Peñablanca, Cagayan, {resident.purok} Belongs to {tribal.tribe} of INDIGENOUS CULTURAL COMMUNITTIES / INDIGENOUS PEOPLE.",
+            f"This is to certify further that {tribal.mother} mother of {tribal.resident} as well as their ancestors are all recognized members of {tribal.tribe} known to be natives of Camasi Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
         ]
-        
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= line_height  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
+        # Add the content lines to the TextObject
+        # for line in content_lines:
+        #     text.textLine(line)
         
         # Draw the TextObject on the canvas
         p.drawText(text)
@@ -520,35 +1292,44 @@ def report_body_goodmoral(p, y_position, line_height, pk):
 
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"              This is to certify that, {goodmoral.resident},",
-            f" 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} is a resident of Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
-            "              The above-named person is known to me to be a law abiding",
-            "citizen and of good moral character and reputation.",
-            " ",
-            "              This certification is issued upon request of the above-named",
-            f"person for {goodmoral.purpose} purposes.",
-            " ",
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
+            f"This is to certify that, {goodmoral.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} is a resident of Camasi, Peñablanca, Cagayan.",
+
+            "The above-named person is known to me to be a law abiding citizen and of good moral character and reputation.",
+
+            f"This certification is issued upon request of the above-named person for {goodmoral.purpose} purposes.",
+
+            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+
         ]
         
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
-        
-        # Draw the TextObject on the canvas
-        p.drawText(text)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
+
 
         # p.setStrokeColor(colors.black)
         # p.rect(400, 300, 100, 80)
@@ -600,38 +1381,50 @@ def report_body_residency(p, y_position, line_height, pk):
         p.line(30, y_position + 80, 560, y_position + 80)
         p.line(40, y_position + 77, 550, y_position + 77) 
         p.setFont("Times-Bold", 20)
-        p.drawString(250, y_position + 25, "CERTIFICATE OF RESIDENCY")
+        p.drawString(230, y_position + 25, "CERTIFICATE OF RESIDENCY")
         p.line(200, y_position + 20, 560, y_position + 20) 
         p.line(200, 695, 200, 40)    
 
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"              This is to certify that, {residency.resident}, of legal ",
-            f"age ,{resident.civil_status}, {resident.citizenship}, whose specimen signature appears below is a",
-            "PERMANENT RESIDENT of this Barangay.",
-            " ",
-            "              Based on records of this office, he/she has been residing at",
-            f"{resident.purok} Camasi Peñablanca, Cagayan.",
-            " ",
-            "              This certification is issued upon request of the above-named",
-            f"person for {residency.purpose} purposes.",
-            " ",
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
+
+            f"This is to certify that, {residency.resident}, of legal age ,{resident.civil_status}, {resident.citizenship}, whose specimen signature appears below is a PERMANENT RESIDENT of this Barangay.",
+
+            f"Based on records of this office, he/she has been residing at {resident.purok} Camasi Peñablanca, Cagayan.",
+
+            f"This certification is issued upon request of the above-named person for {residency.purpose} purposes.",
+
+            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+
         ]
         
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
         
         # Draw the TextObject on the canvas
         p.drawText(text)
@@ -692,31 +1485,42 @@ def report_body_soloparent(p, y_position, line_height, pk):
 
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"              This is to certify that, {soloparent.resident}, 23 years",
-            f"old, {resident.citizenship}, of legal age, {resident.gender}, {resident.civil_status}, and a resident of ",
-            f"{resident.purok} Camasi Peñablanca, whose specimen signature appears ",
-            "below is a SOLO PARENT who soley provides parental/maternal care ",
-            "and support to her/his child/children.",
-            "",
-            "              This certification is issued upon request of the above-named",
-            f"person for {soloparent.purpose} purposes.",
-            " ",
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
+
+            f"This is to certify that, {soloparent.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.gender}, {resident.civil_status}, and a resident of {resident.purok} Camasi Peñablanca, whose specimen signature appears below is a SOLO PARENT who soley provides parental/maternal care and support to her/his child/children.",
+
+            f"              This certification is issued upon request of the above-named person for {soloparent.purpose} purposes.",
+
+            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+
         ]
         
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
         
         # Draw the TextObject on the canvas
         p.drawText(text)
@@ -771,38 +1575,48 @@ def report_body_indigency(p, y_position, line_height, pk):
         p.line(30, y_position + 80, 560, y_position + 80)
         p.line(40, y_position + 77, 550, y_position + 77) 
         p.setFont("Times-Bold", 20)
-        p.drawString(250, y_position + 25, "BARANGAY CLEARANCE")
+        p.drawString(237, y_position + 25, "CERTIFICATE OF INDIGENCY")
         p.line(200, y_position + 20, 560, y_position + 20) 
         p.line(200, 695, 200, 40)    
 
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"              This is to certify that, Mr/Mrs. {indigency.resident},",
-            f" 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} is a resident of Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
-            "              IT is certified further that the above - mentioned person",
-            "belongs to the indigent sector of this community.",
-            " ",
-            "              This certification is issued upon request of the above-named",
-            f"person for {indigency.purpose} purposes.",
-            " ",
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
+            f"This is to certify that, Mr/Mrs. {indigency.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} is a resident of Camasi, Peñablanca, Cagayan.",
+
+            "              IT is certified further that the above - mentioned person belongs to the indigent sector of this community.",
+
+            f"              This certification is issued upon request of the above-named person for {indigency.purpose} purposes.",
+
+            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
         ]
         
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
         
         # Draw the TextObject on the canvas
         p.drawText(text)
@@ -863,50 +1677,44 @@ def report_body_businessClearance(p, y_position, line_height, pk):
 
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"            This is to certify that, Mr. / Ms. / Mrs. {business.proprietor},",
-            f"{business.citizenship}, of legal age, is a resident of {business.address},",
-            "has manifested his/her intent to engage business in this barangay in",
-            " his/her capacity as the owner of said business with business name",
-            f"{business.business_name} a {business.business_type}.",
-            " ",
-            "            THIS FURTHER CERTIFIES that the nature of the business",
-            "does not destroy the moral values of its residents escpecially the youth",
-            "and the children, nor does it cause the breach of peace and order and",
-            "harmony in the barangay, nor endangers the safety and health of its",
-            "constituents, nor unnecessarily destroys the environment to the ",
-            "detriment of the residents thereof.",
-            " ",
-            "            THIS FURTHER CERTIFIES that the applicant has paid the",
-            "amount of in consideration thereof by virtue of Barangay Ordinance No.",
-            "07, S-2023 entitled barangay revenue code 2019, and that all pertinent",
-            "ordinances of this barangay are hereby complied with and shall ",
-            "henceforth be observed with due respect and obidience to the local ",
-            "authorities",
-            " ",
-            "            THIS FURTHER CERTIFIES that the issuance of this Business",
-            "Barangay Clearance is pursuant to Section 152 'c' of RA 7160 wherein",
-            "the city/municipality shall never issue any permit or license for any",
-            "business or activity is located or conducted",
-            " ",
-            f"            Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi,",
-            "Peñablanca, Cagayan.",
-            " ",
+
+            f"This is to certify that, Mr. / Ms. / Mrs. {business.proprietor}, {business.citizenship}, of legal age, is a resident of {business.address}, has manifested his/her intent to engage business in this barangay in his/her capacity as the owner of said business with business name {business.business_name} a {business.business_type}.",
+            "THIS FURTHER CERTIFIES that the nature of the business does not destroy the moral values of its residents escpecially the youth and the children, nor does it cause the breach of peace and order and harmony in the barangay, nor endangers the safety and health of its constituents, nor unnecessarily destroys the environment to the detriment of the residents thereof.",
+ 
+            "THIS FURTHER CERTIFIES that the applicant has paid the amount of in consideration thereof by virtue of Barangay Ordinance No. 07, S-2023 entitled barangay revenue code 2019, and that all pertinentordinances of this barangay are hereby complied with and shall henceforth be observed with due respect and obidience to the local authorities.",
+
+            "THIS FURTHER CERTIFIES that the issuance of this Business Barangay Clearance is pursuant to Section 152 'c' of RA 7160 wherein the city/municipality shall never issue any permit or license for any business or activity is located or conducted",
+
+            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+
         ]
         
-        text = p.beginText(x, y)
-        text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        indentation = "              "     
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
-        
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 20
         # Draw the TextObject on the canvas
-        p.drawText(text)
+        # p.drawText(text)
 
         p.setStrokeColor(colors.black)
         p.rect(400, 165, 100, 80)
@@ -957,35 +1765,43 @@ def report_body_nonOperation(p, y_position, line_height, pk):
         p.line(200, 695, 200, 40)
          # Set the width and height for the paragraph
         x, y = 205, y_position  # Starting position
-        
+        p.setFont("Helvetica", 11.25)
+        p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
         content_lines = [
-            "TO WHOM IT MAY CONCERN:",
-            " ",
-            " ",
-            f"       THIS IS TO CERTIFY THAT {nonoperation.business} a business",
-            f"enterprise with principal address {business.purok}, barangay Camasi,",
-            f"Peñablanca, represented by {business.proprietor} of legal age, {business.citizenship}",
-            f"citizen, with residence at {business.address} whose",
-            f"specimen signature appears, below, has not transacted any business",
-            f"and ceased operation since {nonoperation.ceased_date} up to present.",
-            " ",
-            "        This certification is issued upon request of the above-named",
-            f"person for {nonoperation.purpose} purposes.",
-            " ",
-            f"       Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca,",
-            "Cagayan.",
-            " ",
+
+            f"THIS IS TO CERTIFY THAT {nonoperation.business} a business enterprise with principal address {business.purok}, barangay Camasi, Peñablanca, represented by {business.proprietor} of legal age, {business.citizenship} citizen, with residence at {business.address} whose specimen signature appears, below, has not transacted any business and ceased operation since {nonoperation.ceased_date} up to present.",
+
+            f"This certification is issued upon request of the above-named person for {nonoperation.purpose} purposes.",
+
+            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+
         ]
         
-        text = p.beginText(x, y)
+        indentation = "              "     
+        text = p.beginText(170, y)
         text.setFont("Helvetica", 11.25)
-        
-        # Add the content lines to the TextObject
+        max_width = 355
+        # Write wrapped text to the canvas
         for line in content_lines:
-            text.textLine(line)
-        
-        # Draw the TextObject on the canvas
-        p.drawText(text)
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 30
+
 
         p.drawString(210, 390, "Specimen Signature:")
         p.line(210, 370, 350, 370)
@@ -1030,16 +1846,244 @@ def pdf_report_view(pdf_buffer):
     
     return response
 
-def pdf_resident_list(request):
+def pdf_ofw_list(request):
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
     p.setFont("Helvetica", 12)
-    
+    purok = request.GET.get('purok')
     y_position = 650  # Starting Y position for the first line
     line_height = 20  # Height of each line  
 
     report_header(p, y_position)   
-    report_body(p, y_position, line_height)
+
+    report_body_ofw(p, y_position, line_height, purok)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_deceased_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    purok = request.GET.get('purok')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_deceased(p, y_position, line_height, purok)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_business_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    purok = request.GET.get('purok')
+    status = request.GET.get('status')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_business(p, y_position, line_height, purok, status)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_resident_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    purok = request.GET.get('purok')
+    residenden = request.GET.get('residenden')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body(p, y_position, line_height, purok, residenden)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_brgyClearance_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_brgyClearance_list(p, y_position, line_height, fromDate, toDate)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certResidency_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_Residency_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certIndigency_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_Indigency_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certSoloParent_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_SoloParent_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certGoodMoral_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_GoodMoral_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certTribal_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_Tribal_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_certNonOperation_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_NonOperation_list(p, y_position, line_height, fromDate, toDate)
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_businessClearance_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_businessClearance_list(p, y_position, line_height, fromDate, toDate)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_household_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    purok = request.GET.get('purok')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_household(p, y_position, line_height, purok)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_blotter_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=landscape(A4))
+    p.setFont("Helvetica", 12)
+    status = request.GET.get('status')
+    y_position = 400  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header_landscape(p, y_position)   
+
+    report_body_blotter(p, y_position, line_height, status)
+
+     
     p.save()
     buffer.seek(0)
     return pdf_report_view(buffer)
@@ -1179,53 +2223,54 @@ def brgy_list(request):
 
 @login_required
 def BlotterList(request):      
-    blotter = Blotter.objects.all()
+    blotter = Blotter.objects.all().order_by("-date_created")
     return render(request, 'blotter/BlotterList.html', {'blotter': blotter})
 
 @login_required
 def BrgyClearanceList(request):      
-    brgyclearance = BrgyClearance.objects.all().order_by('date_created')
+    brgyclearance = BrgyClearance.objects.all().order_by('-date_created')
     return render(request, 'brgyclearance/BrgyClearanceList.html', {'brgyclearance': brgyclearance})
 
 @login_required
 def CertIndigencyList(request):      
-    certindigency = CertIndigency.objects.all()
+    certindigency = CertIndigency.objects.all().order_by('-date_created')
     return render(request, 'certindigency/CertIndigencyList.html', {'certindigency': certindigency})
 
 @login_required
 def CertResidencyList(request):      
-    certresidency = CertResidency.objects.all()
+    certresidency = CertResidency.objects.all().order_by('-date_created')
     return render(request, 'certresidency/CertResidencyList.html', {'certresidency': certresidency})
 
 @login_required
 def CertSoloParentList(request):      
-    certsoloparent = CertSoloParent.objects.all()
+    certsoloparent = CertSoloParent.objects.all().order_by('-date_created')
     return render(request, 'certsoloparent/CertSoloparentList.html', {'certsoloparent': certsoloparent})
 
 @login_required
 def CertNonOperationList(request):      
-    certnonoperation = CertNonOperation.objects.all()
+    certnonoperation = CertNonOperation.objects.all().order_by('-date_created')
     return render(request, 'certnonoperation/CertNonoperationList.html', {'certnonoperation': certnonoperation})
 
 @login_required
 def CertGoodMoralList(request):      
-    certgoodmoral = CertGoodMoral.objects.all()
+    certgoodmoral = CertGoodMoral.objects.all().order_by('-date_created')
     return render(request, 'certgoodmoral/CertGoodmoralList.html', {'certgoodmoral': certgoodmoral})
 
 @login_required
 def CertTribalList(request):      
-    tribal = CertTribal.objects.all()
+    tribal = CertTribal.objects.all().order_by('-date_created')
     return render(request, 'certtribal/CertTribalList.html', {'tribal': tribal})
 
 @login_required
 def BusinessClearanceList(request):      
-    businessclearance = BusinessClearance.objects.all()
+    businessclearance = BusinessClearance.objects.all().order_by('-date_created')
     return render(request, 'businessclearance/BusinessClearanceList.html', {'businessclearance': businessclearance})
 
 @login_required
 def BusinessList(request):      
     business = Business.objects.all()
-    return render(request, 'business/BusinessList.html', {'business': business})
+    purok_list= Purok.objects.all().order_by("purok_name") 
+    return render(request, 'business/BusinessList.html', {'business': business, 'purok_list': purok_list})
 
 @login_required
 def PurokList(request):      
@@ -1233,36 +2278,62 @@ def PurokList(request):
     return render(request, 'purok/PurokList.html', {'purok': purok})
 
 @login_required
-def ResidentList(request):      
-    form = ResidentForm(request.POST, request.FILES)
-    resident = Resident.objects.all()
-    return render(request, 'resident/ResidentList.html', {'resident': resident, 'form': form})
+def ResidentList(request):
+    purok_list= Purok.objects.all().order_by("purok_name") 
+    resident = Resident.objects.annotate(
+        age=ExpressionWrapper(
+            date.today().year - F('birth_date__year') - 
+            Case(
+                When(
+                    birth_date__month__gt=date.today().month,
+                    then=Value(1)
+                ),
+                When(
+                    birth_date__month=date.today().month,
+                    birth_date__day__gt=date.today().day,
+                    then=Value(1)
+                ),
+                default=Value(0),
+                output_field=IntegerField()
+            ),
+            output_field=IntegerField()
+        )
+    )
+           
+    return render(request, 'resident/ResidentList.html', {'resident': resident,'purok_list': purok_list})
 
 @login_required
 def HouseholdList(request):      
     resident = Resident.objects.exclude(house_no__isnull=True)
+    purok_list= Purok.objects.all().order_by("purok_name") 
     household = resident.values('house_no').annotate(total_count=Count('id')).order_by('house_no')
-    return render(request, 'household/HouseholdList.html', {'household': household})
+    return render(request, 'household/HouseholdList.html', {'household': household, 'purok_list': purok_list})
 
 @login_required
 def filter_resident(request):
     purok = request.GET.get('purok')
     
-    try:
-        resident = Resident.objects.filter(purok=purok)
-        
+    if purok != '':
+        resident = Resident.objects.filter(purok=purok)  
+    else:
+        resident = Resident.objects.all()
+       
+    try:   
         # Prepare the order items data as a list of dictionaries
         order_items_data = []
         for r in resident:
             order_items_data.append({
+                'pk': r.pk,
                 'name': r.f_name + ' ' + r.m_name + ' ' + r.l_name,
                 'gender': r.gender,
                 'kontak': r.phone_number,
+                'address': r.address,
             })
-        return JsonResponse({'order_items': order_items_data,} )
+        # print(order_items_data)
+        return JsonResponse({'residents': order_items_data,} )
     
     except Resident.DoesNotExist:
-        return JsonResponse({'order_items': []})
+        return JsonResponse({'residents': []})
 
 @login_required
 def get_members(request):
@@ -1277,7 +2348,7 @@ def get_members(request):
             order_items_data.append({
                 'name': r.f_name + ' ' + r.m_name + ' ' + r.l_name,
                 'gender': r.gender,
-                'kontak': r.phone_number,
+                'age': f"{calculate_age(r.birth_date)}",
             })
         return JsonResponse({'order_items': order_items_data,} )
     
@@ -1287,15 +2358,41 @@ def get_members(request):
 @login_required
 def DeceasedList(request):      
     deceased = Deceased.objects.all()
-    return render(request, 'deceased/DeceasedList.html', {'deceased': deceased})
+    purok_list= Purok.objects.all().order_by("purok_name") 
+    return render(request, 'deceased/DeceasedList.html', {'deceased': deceased, 'purok_list': purok_list})
 
 @login_required
 def OfwList(request):      
     ofw = Ofw.objects.all()
-    return render(request, 'ofw/OfwList.html', {'ofw': ofw})
+    purok_list= Purok.objects.all().order_by("purok_name") 
+    return render(request, 'ofw/OfwList.html', {'ofw': ofw, 'purok_list': purok_list})
 
 @login_required
-def Edit_brgy(request, pk):
+def Edit_brgy(request):
+    brgy_count  = Brgy.objects.all().count()
+
+    if brgy_count > 0:
+        brgy = Brgy.objects.first()       
+        if request.method == 'POST':
+            form = BrgyForm(request.POST, request.FILES, instance=brgy)
+            if form.is_valid():
+                form.save()
+                return redirect('Edit_brgy')
+        else:
+            form = BrgyForm(instance=brgy)
+
+    else:
+        if request.method == 'POST':
+            form = BrgyForm(request.POST, request.FILES)
+            if form.is_valid():
+                form.save()
+                return redirect('Edit_brgy')
+        else:
+            form = BrgyForm()
+    return render(request, 'brgy/Edit_brgy.html', {'form': form})
+
+@login_required
+def brgy_list(request, pk):
     try:
         brgy = get_object_or_404(Brgy, pk=pk)
         if request.method == 'POST':
@@ -1354,6 +2451,7 @@ def AdEdBrgyClearance(request, pk):
             form = BrgyClearanceForm(instance=brgyclearance)
         return render(request, 'brgyclearance/AdEdBrgyClearance.html', {'form': form, 'brgyclearance': brgyclearance})
     except Http404:  
+        resident = Resident.objects.all()
         if request.method == 'POST':
             form = BrgyClearanceForm(request.POST, request.FILES)
             if form.is_valid():
@@ -1361,7 +2459,7 @@ def AdEdBrgyClearance(request, pk):
                 return redirect('BrgyClearanceList')               
         else:
             form = BrgyClearanceForm()
-        return render(request, 'brgyclearance/AdEdBrgyClearance.html', {'form': form})
+        return render(request, 'brgyclearance/AdEdBrgyClearance.html', {'form': form, 'resident': resident})
 
 @login_required    
 def AdEdTribal(request, pk):
@@ -1569,8 +2667,9 @@ def AdEdBusiness(request, pk):
 
 @login_required
 def AdEdResident(request, pk):
+    purok_list= Purok.objects.all().order_by("purok_name") 
     try:
-        resident = get_object_or_404(Resident, pk=pk)
+        resident = get_object_or_404(Resident, pk=pk)        
         if request.method == 'POST':
             form = ResidentForm(request.POST, request.FILES, instance=resident)
             if form.is_valid():
@@ -1578,7 +2677,7 @@ def AdEdResident(request, pk):
                 return redirect('ResidentList')
         else:
             form = ResidentForm(instance=resident)
-        return render(request, 'resident/AdEdResident.html', {'form': form, 'resident': resident})
+        return render(request, 'resident/AdEdResident.html', {'form': form, 'resident': resident, 'purok_list': purok_list})
     except Http404:  
         if request.method == 'POST':
             form = ResidentForm(request.POST, request.FILES)
@@ -1587,29 +2686,31 @@ def AdEdResident(request, pk):
                 return redirect('ResidentList')
         else:
             form = ResidentForm()
-        return render(request, 'resident/AdEdResident.html', {'form': form})
+        return render(request, 'resident/AdEdResident.html', {'form': form, 'purok_list': purok_list})
 
-# @login_required
-# def AdEdHousehold(request, pk):
-#     try:
-#         household = get_object_or_404(Household, pk=pk)
-#         if request.method == 'POST':
-#             form = HouseholdForm(request.POST, request.FILES, instance=household)
-#             if form.is_valid():
-#                 form.save()
-#                 return redirect('HouseholdList')
-#         else:
-#             form = HouseholdForm(instance=household)
-#         return render(request, 'household/AdEdHousehold.html', {'form': form, 'household': household})
-#     except Http404:  
-#         if request.method == 'POST':
-#             form = HouseholdForm(request.POST, request.FILES)
-#             if form.is_valid():
-#                 form.save()
-#                 return redirect('HouseholdList')
-#         else:
-#             form = HouseholdForm()
-#         return render(request, 'household/AdEdHousehold.html', {'form': form})
+@login_required
+def AdEdBrgyOfficials(request):
+    officials_count  = Brgy_Officials.objects.all().count()
+
+    if officials_count > 0:
+        officials = Brgy_Officials.objects.first()       
+        if request.method == 'POST':
+            form = brgyOfficialForm(request.POST, request.FILES, instance=officials)
+            if form.is_valid():
+                form.save()
+                return redirect('AdEdBrgyOfficials')
+        else:
+            form = brgyOfficialForm(instance=officials)
+
+    else:
+        if request.method == 'POST':
+            form = brgyOfficialForm(request.POST, request.FILES)
+            if form.is_valid():
+                form.save()
+                return redirect('AdEdBrgyOfficials')
+        else:
+            form = brgyOfficialForm()
+    return render(request, 'officials.html', {'form': form})
 
 @login_required
 def AdEdDeceased(request, pk):

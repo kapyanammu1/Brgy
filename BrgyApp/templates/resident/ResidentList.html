@@ -1,6 +1,9 @@
+
 {% extends 'base.html' %}
   {% block content %}
-  
+  {% load static %}
+  <script src="{% static 'assets/vendor/bootstrap/js/jquery-3.6.0.min.js' %}"></script>
+  <script src="{% static 'assets/vendor/bootstrap/js/bootystrap.js' %}"></script>
     <div class="pagetitle">
       <h1>Profiles</h1>
       <nav>
@@ -12,110 +15,128 @@
     </div><!-- End Page Title -->
 
     <section class="section">
-      
-      <!-- <div class="col-lg-8">
-        <div class="card">
-          <div class="card-body">
-            <h5></h5>           
-              <input class="form-check-input" name="group" type="radio" name="All" id="All" value="option1">
-              <label class="form-check-label" for="All">All</label>
-            &nbsp;&nbsp;
-              <input class="form-check-input" name="group" type="radio" name="Senior" id="Senior" value="option2">
-              <label class="form-check-label" for="Senior">Senior Citizen</label>
-            &nbsp;&nbsp;
-              <input class="form-check-input" name="group" type="radio" name="Solo_Parent" id="Solo_Parent" value="option3">
-              <label class="form-check-label" for="Solo_Parent">Solo Parent</label>        
-            &nbsp;&nbsp;
-              <input class="form-check-input" name="group" type="radio" name="Pwd" id="Pwd" value="option4">
-              <label class="form-check-label" for="Pwd">Person with Disability (PWD)</label>
-            &nbsp;&nbsp;
-              <input class="form-check-input" name="group" type="radio" name="Voters" id="Voters" value="option5">
-              <label class="form-check-label" for="Voters">Voters</label>
-            &nbsp;&nbsp;&nbsp;
-            <button type="button" class="btn btn-light rounded-pill filter-btn" data-toggle="modal" purok="{{ households.house_no }}">Filter</button>
-            <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'AdEdResident' 0 %}">Filter</a></button>
-              {% csrf_token %}
-              <div class="col-lg-4">
-              <label for="{{ form.purok.id_for_label }}">{{ form.purok.label }}</label>
-              {{ form.purok }} 
-              </div>                
-          </div>
-        </div>
-      </div> -->
 
       <div class="row">
         <div class="col-lg-12">        
           <div class="card">
             <div class="card-body">
-              <h5> </h5> 
+            </br>
               <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'AdEdResident' 0 %}">Add New Resident</a></button>
-              <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'resident_list' %}" target="_blank">Print</a></button> 
+              <button type="button" class="btn btn-info rounded-pill view-details-btn" data-toggle="modal" data-target="#popupForm">Print</button>
+              <!-- <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'resident_list' %}" target="_blank">Print</a></button>  -->
               <table class="table datatable">
                 <thead>
                   <tr>
                     <th scope="col">Name</th>
                     <th scope="col">Gender</th>
-                    <th scope="col">Contact Number</th>
+                    <th scope="col">Age</th>
+                    <th scope="col">Purok</th>
                     <th scope="col">Address</th>
                     <th scope="col">Action</th>                    
                   </tr>
                 </thead>
-                <tbody>
+                <tbody id="resident-table">
                   {% for residents in resident %}
                   <tr id="{{ puroks.pk }}">                   
                     <td>{{ residents.l_name }}, {{ residents.f_name }} {{ residents.m_name }}</td>
                     <td>{{ residents.gender }}</td>
-                    <td>{{ residents.phone_number }}</td>
+                    <td>{{ residents.age }}</td>
+                    <td>{{ residents.purok }}</td>
                     <td>{{ residents.address }}</td>
                     <td scope="col">
-                      <button type="button" class="btn btn-light rounded-pill"><a href="{% url 'AdEdResident' residents.pk %}">Edit</a></button>
+                      <button type="button" class="btn btn-light rounded-pill"><a href="{% url 'AdEdResident' residents.pk %}">View/Update</a></button>
                       <button type="button" class="btn btn-light rounded-pill" onclick="deleteBrgy({{ residents.pk }})">Delete</button>                      
                     </td>                 
                   </tr>
                   {% endfor %}
                 </tbody>
               </table>
-
             </div>
           </div>
-
         </div>
       </div>
-    </section>
+    </section
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- Popup Form -->
+  <div class="modal fade" id="popupForm" tabindex="-1" role="dialog" aria-labelledby="popupFormLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="popupFormLabel">Report Filter</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+                <form method="GET" id="filter-form">
+                  <div class="row align-items-center">
+                    <div class="col-lg-4">
+                        <label for="purok">Purok/Zone</label>
+                        <select class="form-select" id="purok">
+                            <option value="0">All</option>
+                            {% for p in purok_list %}
+                            <option value="{{ p.pk }}">{{ p.purok_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-lg-6">
+                        <label for="residenden">Residents</label>
+                        <select class="form-select" id="residenden">
+                            <option value="all">All</option>
+                            <option value="Sr">Senior Citizen</option>
+                            <option value="Solo">Solo Parent</option>
+                            <option value="pwd">Person with disability</option>
+                            <option value="voter">Registered Voters</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2">
+                      <button type="button" class="btn btn-light rounded-pill filter-btn" data-toggle="modal" onclick="printSelectedPurok()">Print</button>
+                    </div>
+                </div>
+              </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
     <script>
       $(document).ready(function() {
-                // Handle the "View Details" button click
-                $('.filter-btn').click(function() {
-                  var Purok = $(this).data('purok');
+          $('.filter-btn').click(function() {      
+            var selectedPurok = $('#purok').val(); // Use jQuery to get the value
+            var selectedResidenden = $('#residenden').val();
+            var Purok = $(this).data('purok');
+            if (Purok === undefined || Purok === "") {
+                Purok = selectedPurok;
+            }    
+            
+            $.ajax({
+              url: '/resident_list/', 
+              method: 'GET',
+              data: { purok: selectedPurok, residenden: selectedResidenden },
 
-                  // Make an AJAX request to retrieve the order items for the selected sale
-                  $.ajax({
-                    url: '/ResidentList/', 
-                    method: 'GET',
-                    data: { purok_filter: Purok },
-                    success: function(response) {
-                      location.reload
-                    },
-                    error: function() {
-                      alert('Error occurred!');
-                    }
-                  });
-                });
-              });
-
-      const radioButtons = document.querySelectorAll('input[name="group"]');
-      radioButtons.forEach(radio => {
-          radio.addEventListener('change', () => {
-              radioButtons.forEach(r => {
-                  if (r !== radio) {
-                      r.checked = false;
-                  }
-              });
+              error: function() {
+                alert('Error occurred!');
+              }
+            });
           });
-      });
+        });
 
+        function printSelectedPurok() {
+            // Get the selected value from the dropdown
+            var selectedPurok = document.getElementById('purok').value;
+            var selectedResidenden = document.getElementById('residenden').value;
+            
+            // Pass the selectedPurok to the openPrintPage function
+            openPrintPage(selectedPurok, selectedResidenden);
+        }
+
+        function openPrintPage(purok, residenden) {
+            // Replace 'url_to_print' with the actual URL you want to print
+            var urlToPrint = '/resident_list/?purok=' + purok + '&residenden=' + residenden;
+
+            // Open the URL in a new tab or window
+            window.open(urlToPrint, '_blank');
+        }
 
       function deleteBrgy(pk) {
         if (confirm("Are you sure you want to delete this item?")) {
@@ -135,7 +156,6 @@
             });
         }
       } 
-      
-     
+          
     </script>
 {% endblock %}

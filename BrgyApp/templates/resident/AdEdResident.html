@@ -1,68 +1,130 @@
 {% extends 'base.html' %}
   {% block content %}
+  {% load static %}
     <div class="pagetitle">
-      <h1>Residents</h1>
+      <h1>Resident Profile</h1>
       <nav>
         <ol class="breadcrumb">
           <li class="breadcrumb-item"><a href="{% url 'index' %}">Home</a></li>
-          <li class="breadcrumb-item active">Resident</li>
+          <li class="breadcrumb-item active">Profile</li>
         </ol>
       </nav>
     </div><!-- End Page Title -->
     <section class="section">
-      <div class="row">
-
+      <!-- <div class="row">
         <div class="row justify-content-center">
-
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">Resident</h5>
-
-              <!-- Vertical Form -->
+              
               <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
-                <div class="col-6">
-                  {{ form.as_p }}
-                  <img id="image-preview" src="" alt="Image Preview" style="max-width: 300px; max-height: 300px;">
-                  <div class="form-check mt-2">
-                    <input class="form-check-input" type="checkbox" id="clear-image" name="clear_image">
-                    <label class="form-check-label" for="clear-image">Clear Image</label>
-                  </div>   
+                <div class="col-3">
+                </br>
+                  <p><img id="preview-image" src="{% if form.image %}
+                                                    {{ form.image.value.url }}
+                                                  {% else %}
+                                                    {% static 'item_images/default.jpg' %}
+                                                  {% endif %}" 
+                  style="max-width: 300px; max-height: 300px;" alt="Uploaded Image"></br></p>
+                  <p><input type="file" name="image" id="id_image" value="{{ form.image.value.url }}" onchange="previewImage(event)"><br></p>
+                  <label for="id_f_name">First Name:</label>
+                  <input class="form-control" name="f_name" id="id_f_name" value="{{ form.f_name.value }}"><br>
+                  <label for="id_m_name">Middle Name:</label>
+                  <input class="form-control" name="m_name" id="id_m_name" value="{{ form.m_name.value }}"><br>
+                  <label for="id_l_name">Last Name:</label>
+                  <input class="form-control" name="l_name" id="id_l_name" value="{{ form.l_name.value }}"><br>
                 </div>               
                 
                 <div class="text-center">
                   <button type="submit" class="btn btn-primary">Submit</button>
                   <button type="reset" class="btn btn-secondary">Reset</button>
                 </div>
-              </form><!-- Vertical Form -->
+              </form>
 
             </div>
           </div>  
         </div>
+      </div> -->
+      <div class="container">
+        <form method="post" enctype="multipart/form-data">
+        <div class="row justify-content-center">
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    
+                      {% csrf_token %}
+                      <!-- {{ form.as_p }} -->
+                      <div class="">
+                        </br>
+                        <center><p><img id="preview-image" src="{% if form.image %}
+                                                            {{ form.image.value.url }}
+                                                          {% else %}
+                                                            {% static 'item_images/default.jpg' %}
+                                                          {% endif %}" 
+                        style="max-width: 320px; max-height: 300px;" alt="Uploaded Image"></br></p></center>
+                        <p><input class="form-control" type="file" name="image" id="id_image" value="{{ form.image.value.url }}" onchange="previewImage(event)"></p>
+                        <p>{{ form.f_name.label_tag }} {{ form.f_name }}</p>
+                        <p>{{ form.m_name.label_tag }} {{ form.m_name }}</p>
+                        <p>{{ form.l_name.label_tag }} {{ form.l_name }}</p>
+                        <p>{{ form.house_no.label_tag }} {{ form.house_no }}</p>
+                      </div>                       
+                  </div>
+                </div>
+              </div>
+            <div class="col-md-8">
+              <div class="card">
+                <div class="card-body">
+                  </br>
+                  <div class="row">
+                    
+                    <div class="col-md-6 ">
+                        <p>{{ form.purok.label_tag }} {{ form.purok }}</p>
+                        <p>{{ form.address.label_tag }} {{ form.address }}</p>
+                        <p>{{ form.gender.label_tag }} {{ form.gender }}</p>
+                        <p>{{ form.birth_date.label_tag }} {{ form.birth_date }}</p>
+                        <p>{{ form.birth_place.label_tag }} {{ form.birth_place }}</p>
+                        <p>{{ form.phone_number.label_tag }} {{ form.phone_number }}</p>
+                        <p>{{ form.civil_status.label_tag }} {{ form.civil_status }}</p>
+                        
+                        
+                        
+                    </div>
+                    <div class="col-md-6">
+                        <p>{{ form.religion.label_tag }} {{ form.religion }}</p>
+                        <p>{{ form.citizenship.label_tag }} {{ form.citizenship }}</p>
+                        <p>{{ form.profession.label_tag }} {{ form.profession }}</p>
+                        <p>{{ form.education.label_tag }} {{ form.education }}</p>
+                        <p>{{ form.voter.label_tag }} {{ form.voter }}</p>
+                        <p>{{ form.solo_parent.label_tag }} {{ form.solo_parent }}</p>
+                        <p>{{ form.pwd.label_tag }} {{ form.pwd }}</p>
+                    </div>
+                    <div class="text-center">
+                      <button type="submit" class="btn btn-primary">Submit</button>
+                      <button type="reset" class="btn btn-secondary">Reset</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+        </div>
+        </form>
       </div>
     </section>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        $(document).ready(function() {
-        // When a file is selected or the "Clear Image" checkbox is changed,
-        // update the image preview and clear the image if needed
-        $('#{{ form.image.id_for_label }}, #clear-image').on('change', function(event) {
-            var input = $('#{{ form.image.id_for_label }}')[0];
-            var imgPreview = $('#image-preview')[0];
-            var clearImage = $('#clear-image')[0];
 
-            if (clearImage.checked) {
-                imgPreview.src = '';
-                input.value = '';  // Clear the selected file
-            } else if (input.files && input.files[0]) {
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    imgPreview.src = e.target.result;
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        });
-    });
+    <script>
+        function previewImage(event) {
+          var input = event.target;
+          var preview = document.getElementById('preview-image');
+
+          var reader = new FileReader();
+          reader.onload = function() {
+              preview.src = reader.result;
+          };
+
+          if (input.files && input.files[0]) {
+              reader.readAsDataURL(input.files[0]);
+          }
+        }
     </script>
     
 {% endblock %}

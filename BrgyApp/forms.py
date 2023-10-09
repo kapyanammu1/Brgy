@@ -1,21 +1,49 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, UserChangeForm, PasswordChangeForm
 from django.contrib.auth.models import User
-from .models import  CertTribal, Brgy, Purok, Resident, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertSoloParent, CertGoodMoral, CertIndigency, CertNonOperation, CertResidency
+from .models import CertTribal, Brgy, Purok, Resident, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertSoloParent, CertGoodMoral, CertIndigency, CertNonOperation, CertResidency, Brgy_Officials
 from django.core.exceptions import ValidationError
+
+class CustomPasswordChangeForm(PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super(CustomPasswordChangeForm, self).__init__(*args, **kwargs)
+        for field in self.fields:
+            self.fields[field].widget.attrs.update({
+                'class': 'form-control',  # Add your CSS classes here
+                'placeholder': 'Enter ' + field.replace('_', ' ').capitalize(),
+            })
+
+class CustomUserChangeForm(UserChangeForm):
+    class Meta(UserChangeForm.Meta):
+        fields = ('username', 'first_name', 'last_name')
+    username = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Username'})
+    )
+    first_name = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your First Name'})
+    )
+    last_name = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Last Name'})
+    )
 
 class SignupForm(UserCreationForm):
     class Meta:
         model = User
-        fields = ('username', 'email', 'password1', 'password2')
+        fields = ('username', 'first_name', 'last_name', 'password1', 'password2')
     username = forms.CharField(
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Username'})
     )
+    first_name = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your First Name'})
+    )
+    last_name = forms.CharField(
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Last Name'})
+    )
     password1 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Password'})
+        label="Password", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Enter your Password'})
     )
     password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repeat your Password'})
+        label="Confirm Password", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Repeat your Password'})
     )
 
 class LoginForm(AuthenticationForm):
@@ -92,7 +120,7 @@ class ResidentForm(forms.ModelForm):
                   )
         widgets = {
             'purok': forms.Select(attrs={
-            'class': 'form-select'
+            'class': 'form-select',
             }),
         }
     
@@ -109,50 +137,63 @@ class ResidentForm(forms.ModelForm):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Last Name'})
     )
     gender = forms.ChoiceField(
-        widget=forms.Select(attrs={'class': 'form-select', 'placeholder': 'Enter Last Name'}),
+        widget=forms.Select(attrs={'class': 'form-select'}),
         choices=Gender_choices,
     )
     house_no = forms.CharField(
+        label="House No.",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Address'})
     )
     address = forms.CharField(
+        label="Address",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Address'})
     )
     phone_number = forms.CharField(
+        label="Contact Number",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Phone Number'})
     )
     birth_date = forms.DateField(
+        label="Date of Birth",
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
     birth_place = forms.CharField(
+        label="Place of Birth",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Birth Place'})
     )
     civil_status = forms.ChoiceField(
+        label="Civil Status",
         widget=forms.Select(attrs={'class': 'form-select'}),
         choices=CIVIL_STATUS_CHOICES,
     )
     religion = forms.CharField(
+        label="Religion",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Religion'})
     )
     citizenship = forms.CharField(
+        label="Citizenship",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Citizenship'})
     )
     profession = forms.CharField(
+        label="Profession",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Profession'})
     )
     education = forms.ChoiceField(
+        label="Education",
         widget=forms.Select(attrs={'class': 'form-select', 'placeholder': 'Enter Education'}),
         choices=Educaional_attainment_choices,
     )
     voter = forms.BooleanField(
+        label="Registered Voter",
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
     solo_parent = forms.BooleanField(
+        label="Solo Parent",
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
     pwd = forms.BooleanField(
+        label="Person with Disability",
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
@@ -165,7 +206,7 @@ class ResidentForm(forms.ModelForm):
         
         # Set default image if the instance doesn't have an image
         if not self.instance.image:
-            self.fields['image'].initial = 'assets/img/default.jpg'
+            self.fields['image'].initial = 'item_images/default.jpg'
 
 class HouseholdForm(forms.ModelForm):
     class Meta:
@@ -226,6 +267,57 @@ class OfwForm(forms.ModelForm):
             'class': 'form-control'
             }),
         }
+
+class brgyOfficialForm(forms.ModelForm):
+    class Meta:
+        model = Brgy_Officials
+        fields = ('brgy_Captain', 'kagawad1', 'kagawad2', 'kagawad3', 'kagawad4', 'kagawad5', 'kagawad6', 'kagawad7', 'sk', 'secretary', 'treasurer')
+
+        widgets = {
+            'brgy_Captain': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad1': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad2': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad3': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad4': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad5': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad6': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'kagawad7': forms.Select(attrs={
+            'class': 'form-select'           
+            }),
+            'sk': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'secretary': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+            'treasurer': forms.Select(attrs={
+            'class': 'form-select'           
+            }),
+        }
+
+    # def clean(self):
+    #     cleaned_data = super().clean()
+    #     complainants = self.cleaned_data.get('complainants')
+    #     respondents = self.cleaned_data.get('respondents')
+        
+    #     if complainants == respondents:
+    #         raise ValidationError("Complainant and respondent cannot be the same!")
+        
+    #     return cleaned_data
 
 class BlotterForm(forms.ModelForm):
     status_choices = (

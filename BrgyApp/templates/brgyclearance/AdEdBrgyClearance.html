@@ -16,13 +16,19 @@
 
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">Barangay Clearance</h5>
-
+            </br>
               <!-- Vertical Form -->
               <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="col-6">
                   {{ form.as_p }}   
+                  <!-- <p>{{ form.resident.label_tag }} {{ form.resident }}</p> -->
+                  <!-- <p>{{ form.resident.label_tag }} <input list="residents-list" name="{{ form.resident.name }}" id="{{ form.resident.id_for_label }}">
+                    <datalist id="residents-list">
+                        {% for residents in resident %}
+                            <option value="{{ residents.l_name }}">
+                        {% endfor %}
+                    </datalist></p> -->
                 </div>               
                 
                 <div class="text-center">

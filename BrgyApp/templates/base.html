@@ -26,8 +26,6 @@
   <link href="{% static 'assets/vendor/quill/quill.bubble.css' %}" rel="stylesheet">
   <link href="{% static 'assets/vendor/remixicon/remixicon.css' %}" rel="stylesheet">
   <link href="{% static 'assets/vendor/simple-datatables/style.css' %}" rel="stylesheet">
-  <link href="{% static 'select2/css/select2.min.css' %}" rel="stylesheet" />
-  <link href="{% static 'select2/css/select2-bootstrap4.min.css' %}" rel="stylesheet" />
 
   <!-- Template Main CSS File -->
   <link href="{% static 'assets/css/style.css' %}" rel="stylesheet">
@@ -81,7 +79,7 @@
   <aside id="sidebar" class="sidebar">
     <ul class="sidebar-nav" id="sidebar-nav">     
       <li class="nav-item">
-        <a class="nav-link " href="{% url 'index' %}">
+        <a class="nav-link" href="{% url 'index' %}">
           <i class="bi bi-grid"></i>
           <span>Dashboard</span>
         </a>
@@ -92,16 +90,7 @@
           <i class="bi bi-menu-button-wide"></i><span>Set-Up</span><i class="bi bi-chevron-down ms-auto"></i>
         </a>
         <ul id="components-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
-          <li>
-            <a href="{% url 'brgy_list' %}">
-              <i class="bi bi-circle"></i><span>Brgy List</span>
-            </a>
-          </li>
-          <li>
-            <a href="{% url 'PurokList' %}">
-              <i class="bi bi-circle"></i><span>Purok/Zone List</span>
-            </a>
-          </li>
+          
           <li>
             <a href="{% url 'ResidentList' %}">
               <i class="bi bi-circle"></i><span>Resident List</span>
@@ -195,10 +184,39 @@
           </li> -->
         </ul>
       </li>
+      <li class="nav-heading">System Settings</li>
+      <li class="nav-item">
+        <a class="nav-link collapsed" data-bs-target="#settings-nav" data-bs-toggle="collapse" href="#">
+          <i class="ri ri-settings-2-line"></i><span>Settings</span><i class="bi bi-chevron-down ms-auto"></i>
+        </a>
+        <ul id="settings-nav" class="nav-content collapse " data-bs-parent="#sidebar-nav">
+          <li>
+            <a href="{% url 'Edit_brgy' %}">
+              <i class="bi bi-circle"></i><span>Barangay Information</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'PurokList' %}">
+              <i class="bi bi-circle"></i><span>Purok / Zone</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'AdEdBrgyOfficials' %}">
+              <i class="bi bi-circle"></i><span>Barangay Officials</span>
+            </a>
+          </li>
+          
+        </ul>
+      </li>
+      <!-- <li class="nav-item">
+        <a class="nav-link " href="{% url 'Edit_brgy' %}">
+          <i class="ri ri-bank-line"></i>
+          <span>Municipality And Barangay</span>
+        </a>
+      </li> -->
     </ul>
 
   </aside><!-- End Sidebar-->
-
 
     <main id="main" class="main">
 
@@ -217,10 +235,7 @@
   <script src="{% static 'assets/vendor/quill/quill.min.js' %}"></script>
   <script src="{% static 'assets/vendor/simple-datatables/simple-datatables.js' %}"></script>
   <script src="{% static 'assets/vendor/tinymce/tinymce.min.js' %}"></script>
-  <script src="{% static 'assets/vendor/php-email-form/validate.js' %}"></script>
-  <script src="{% static 'select2/js/jquery.min.js' %}"></script>
-  <script src="{% static 'select2/js/select2.min.js' %}"></script>
-
+  
   <!-- Template Main JS File -->
   <script src="{% static 'assets/js/main.js' %}"></script>
 

@@ -33,22 +33,37 @@ class Resident(models.Model):
     house_no = models.CharField(max_length=15, blank=True, null=True)
     address = models.CharField(max_length=100)
     purok = models.ForeignKey(Purok, on_delete=models.CASCADE)
-    phone_number = models.CharField(max_length=20)  
+    phone_number = models.CharField(max_length=20)
     birth_date = models.DateField()
     birth_place = models.CharField(max_length=100)
     civil_status = models.CharField(max_length=50)
     religion = models.CharField(max_length=50)
     citizenship = models.CharField(max_length=50)
-    profession = models.CharField(max_length=100)    
-    education = models.CharField(max_length=100)    
+    profession = models.CharField(max_length=100)
+    education = models.CharField(max_length=100)
     voter = models.BooleanField(default=False)
     solo_parent = models.BooleanField(default=False)
     pwd = models.BooleanField(default=False)
     image = models.ImageField(upload_to='item_images', blank=True, null=True)
 
     def __str__(self):
-        full_name = f"{self.f_name} {self.m_name} {self.l_name}"
+        full_name = f"{self.f_name} {self.m_name[0]}. {self.l_name}"
         return full_name
+    
+class Brgy_Officials(models.Model):
+    brgy_Captain = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='brgy_Captain')
+    kagawad1 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad1')
+    kagawad2 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad2')
+    kagawad3 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad3')
+    kagawad4 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad4')
+    kagawad5 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad5')
+    kagawad6 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad6')
+    kagawad7 = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='kagawad7')
+    sk = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='sk')
+    secretary = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='secretary')
+    treasurer = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='treasurer')
+    def __str__(self):
+        return self.purok_name
     
 class Business(models.Model):
     business_name = models.CharField(max_length=100)
