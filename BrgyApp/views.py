@@ -51,7 +51,7 @@ def AdEdUsers(request, pk):
                 return redirect('Users')
         else:
             form = CustomUserChangeForm(instance=user)
-        return render(request, 'AdEdusers.html', {'form': form})
+        return render(request, 'AdEdUsers.html', {'form': form})
     except Http404:  
         if request.method == 'POST':
             form = SignupForm(request.POST)
@@ -60,7 +60,7 @@ def AdEdUsers(request, pk):
                 return redirect('Users')
         else:
             form = SignupForm()
-        return render(request, 'AdEdusers.html', {'form': form})
+        return render(request, 'AdEdUsers.html', {'form': form})
 
 def change_password(request):
     if request.method == 'POST':
