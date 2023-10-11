@@ -11,40 +11,7 @@
       </nav>
     </div><!-- End Page Title -->
     <section class="section">
-      <!-- <div class="row">
-        <div class="row justify-content-center">
-          <div class="card">
-            <div class="card-body">
-              
-              <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="col-3">
-                </br>
-                  <p><img id="preview-image" src="{% if form.image %}
-                                                    {{ form.image.value.url }}
-                                                  {% else %}
-                                                    {% static 'item_images/default.jpg' %}
-                                                  {% endif %}" 
-                  style="max-width: 300px; max-height: 300px;" alt="Uploaded Image"></br></p>
-                  <p><input type="file" name="image" id="id_image" value="{{ form.image.value.url }}" onchange="previewImage(event)"><br></p>
-                  <label for="id_f_name">First Name:</label>
-                  <input class="form-control" name="f_name" id="id_f_name" value="{{ form.f_name.value }}"><br>
-                  <label for="id_m_name">Middle Name:</label>
-                  <input class="form-control" name="m_name" id="id_m_name" value="{{ form.m_name.value }}"><br>
-                  <label for="id_l_name">Last Name:</label>
-                  <input class="form-control" name="l_name" id="id_l_name" value="{{ form.l_name.value }}"><br>
-                </div>               
-                
-                <div class="text-center">
-                  <button type="submit" class="btn btn-primary">Submit</button>
-                  <button type="reset" class="btn btn-secondary">Reset</button>
-                </div>
-              </form>
-
-            </div>
-          </div>  
-        </div>
-      </div> -->
+      
       <div class="container">
         <form method="post" enctype="multipart/form-data">
         <div class="row justify-content-center">
@@ -56,7 +23,7 @@
                       <!-- {{ form.as_p }} -->
                       <div class="">
                         </br>
-                        <center><p><img id="preview-image" src="{% if form.image %}
+                        <center><p><img id="preview-image" src="{% if form.image.value.url %}
                                                             {{ form.image.value.url }}
                                                           {% else %}
                                                             {% static 'item_images/default.jpg' %}
