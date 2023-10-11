@@ -26,7 +26,7 @@
                         <center><p><img id="preview-image" src="{% if form.image.value.url %}
                                                             {{ form.image.value.url }}
                                                           {% else %}
-                                                            {% static 'item_images/default.jpg' %}
+                                                            {% static 'assets/img/default.jpg' %}
                                                           {% endif %}" 
                         style="max-width: 320px; max-height: 300px;" alt="Uploaded Image"></br></p></center>
                         <p><input class="form-control" type="file" name="image" id="id_image" value="{{ form.image.value.url }}" onchange="previewImage(event)"></p>
