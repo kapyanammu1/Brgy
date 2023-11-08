@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm, UserChangeForm, PasswordChangeForm
 from django.contrib.auth.models import User
-from .models import CertTribal, Brgy, Purok, Resident, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertSoloParent, CertGoodMoral, CertIndigency, CertNonOperation, CertResidency, Brgy_Officials
+from .models import CertTribal, Brgy, Purok, Resident, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertSoloParent, CertGoodMoral, CertIndigency, CertNonOperation, CertResidency, Brgy_Officials, JobSeekers
 from django.core.exceptions import ValidationError
 
 class CustomPasswordChangeForm(PasswordChangeForm):
@@ -113,17 +113,18 @@ class ResidentForm(forms.ModelForm):
         
         model = Resident   
         fields = ('f_name', 'm_name', 'l_name',
-                  'gender','house_no','address', 'purok',
+                  'gender','house_no',
                   'phone_number', 'birth_date', 'birth_place',
                   'civil_status', 'religion', 'citizenship',
                   'profession', 'education', 'voter', 'solo_parent','pwd', 'image',
                   )
-        widgets = {
-            'purok': forms.Select(attrs={
-            'class': 'form-select',
-            }),
-        }
     
+        widgets = {
+                'house_no': forms.Select(attrs={
+                'class': 'form-select'
+                }),
+            }
+
     f_name = forms.CharField(
         label="First Name",
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter First Name'})
@@ -139,14 +140,6 @@ class ResidentForm(forms.ModelForm):
     gender = forms.ChoiceField(
         widget=forms.Select(attrs={'class': 'form-select'}),
         choices=Gender_choices,
-    )
-    house_no = forms.CharField(
-        label="House No.",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Address'})
-    )
-    address = forms.CharField(
-        label="Address",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Address'})
     )
     phone_number = forms.CharField(
         label="Contact Number",
@@ -211,13 +204,13 @@ class ResidentForm(forms.ModelForm):
 class HouseholdForm(forms.ModelForm):
     class Meta:
         model = Household
-        fields = ('house_no', 'house_type', 'purok',)
+        fields = ('house_no', 'address', 'purok',)
     
         widgets = {
             'house_no': forms.NumberInput(attrs={
             'class': 'form-control'
             }),
-            'house_type': forms.TextInput(attrs={
+            'address': forms.TextInput(attrs={
             'class': 'form-control'
             }),
             'purok': forms.Select(attrs={
@@ -394,6 +387,16 @@ class BusinessForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-control'}),
         choices=status_choices,
     )
+
+class JobSeekersForm(forms.ModelForm):
+    class Meta:
+        model = JobSeekers
+        fields = ('resident',)
+        widgets = {
+            'resident': forms.Select(attrs={
+            'class': 'form-select'
+            }),
+        }
 
 class BrgyClearanceForm(forms.ModelForm):
     class Meta:

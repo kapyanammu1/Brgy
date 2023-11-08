@@ -20,23 +20,27 @@
           <div class="card">
             <div class="card-body">
             </br>
+            <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'AdEdHousehold' 0 %}">Add New Household</a></button>
               <button type="button" class="btn btn-info rounded-pill report-btn" data-toggle="modal" data-target="#reportForm">Print</button>
               <table class="table datatable">
                 <thead>
                   <tr>
                     <th scope="col">Household Number</th>
+                    <th scope="col">address</th>
+                    <th scope="col">Zone/Purok</th>
                     <th scope="col">No. of Residents</th>
                     <th scope="col">Action</th>                    
                   </tr>
                 </thead>
                 <tbody>
-                  {% for households in household %}
-                  <tr id="{{ households.pk }}">                   
+                  {% for households in member_count %}
+                  <tr>                   
                     <td>{{ households.house_no }}</td>
-                    <td>{{ households.total_count }}</td>
+                    <td>{{ households.address }}</td>
+                    <td>{{ households.purok }}</td>
+                    <td>{{ households.resident_count }}</td>
                     <td scope="col">
-                      <button type="button" class="btn btn-light rounded-pill view-details-btn" data-toggle="modal" data-target="#popupForm" data-sale-id="{{ households.house_no }}">View Members</button>
-                      
+                      <button type="button" class="btn btn-light rounded-pill view-details-btn" data-toggle="modal" data-target="#popupForm" data-sale-id="{{ households.pk }}" data-hh-no="{{ households.house_no }}">View Members</button>                      
                     </td>                 
                   </tr>
                   {% endfor %}
@@ -115,10 +119,11 @@
           // Handle the "View Details" button click
           $('.view-details-btn').click(function() {
             var saleId = $(this).data('sale-id');
+            var hh_no = $(this).data('hh-no');
             var orderItemsBody = $('#order-items-body');
             // Clear existing order items from the table
             orderItemsBody.empty();
-            document.getElementById('popupFormLabel1').innerHTML = "House No: " + saleId 
+            document.getElementById('popupFormLabel1').innerHTML = "House No: " + hh_no 
             // Make an AJAX request to retrieve the order items for the selected sale
             $.ajax({
               url: '/get_members/', // Replace with the actual URL to retrieve order items
@@ -126,16 +131,22 @@
               data: { sale_id: saleId },
               success: function(response) {
                 // Iterate over the returned order items and add them to the table
-                for (var i = 0; i < response.order_items.length; i++) {
-                  var orderItem = response.order_items[i];
-                  var rowHtml = '<tr>' +
-                    '<td>' + orderItem.name + '</td>' +
-                    '<td>' + orderItem.gender + '</td>' +
-                    '<td>' + orderItem.age + '</td>' +
-                    '</tr>';
+                if (response.order_items.length <= 0){
+                  var noEntriesRow = '<tr><td colspan="3">No entries found.</td></tr>';
+                  orderItemsBody.append(noEntriesRow);
+                } else {
+                  for (var i = 0; i < response.order_items.length; i++) {
+                    var orderItem = response.order_items[i];
+                    var rowHtml = '<tr>' +
+                      '<td>' + orderItem.name + '</td>' +
+                      '<td>' + orderItem.gender + '</td>' +
+                      '<td>' + orderItem.age + '</td>' +
+                      '</tr>';
 
-                  orderItemsBody.append(rowHtml);
+                    orderItemsBody.append(rowHtml);
+                  }
                 }
+                
               },
               error: function() {
                 alert('Error occured!');

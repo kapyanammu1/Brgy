@@ -353,7 +353,7 @@
                         {% for item in resident_graph_data %}
                             {
                                 value: {{ item.total_count }},
-                                name: '{{ item.purok__purok_name }}'
+                                name: '{{ item.house_no__purok__purok_name }}'
                             },
                         {% endfor %}
                       ]

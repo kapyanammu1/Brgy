@@ -18,8 +18,8 @@ class Purok(models.Model):
         return self.purok_name
 
 class Household(models.Model):
-    house_no = models.IntegerField()
-    house_type = models.CharField(max_length=100)
+    house_no = models.CharField(max_length=100)
+    address = models.CharField(max_length=100)
     purok = models.ForeignKey(Purok, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -30,9 +30,7 @@ class Resident(models.Model):
     l_name = models.CharField(max_length=100)
     m_name = models.CharField(max_length=100)
     gender = models.CharField(max_length=15)
-    house_no = models.CharField(max_length=15, blank=True, null=True)
-    address = models.CharField(max_length=100)
-    purok = models.ForeignKey(Purok, on_delete=models.CASCADE)
+    house_no = models.ForeignKey(Household, on_delete=models.CASCADE)
     phone_number = models.CharField(max_length=20)
     birth_date = models.DateField()
     birth_place = models.CharField(max_length=100)
@@ -49,6 +47,13 @@ class Resident(models.Model):
     def __str__(self):
         full_name = f"{self.f_name} {self.m_name[0]}. {self.l_name}"
         return full_name
+    
+class JobSeekers(models.Model):
+    resident = models.ForeignKey(Resident, on_delete=models.CASCADE)
+    date_created = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return self.resident
     
 class Brgy_Officials(models.Model):
     brgy_Captain = models.ForeignKey(Resident, on_delete=models.CASCADE, related_name='brgy_Captain')

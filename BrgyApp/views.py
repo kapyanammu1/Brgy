@@ -3,8 +3,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.contrib import messages
-from .models import CertTribal, Brgy, Purok, Resident, Brgy_Officials, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertResidency, CertGoodMoral, CertIndigency, CertNonOperation, CertSoloParent
-from .forms import CustomUserChangeForm, SignupForm, CertTribalForm, BrgyForm, PurokForm, ResidentForm, brgyOfficialForm, DeceasedForm, OfwForm, BlotterForm, BusinessForm, BrgyClearanceForm, BusinessClearanceForm, CertGoodMoralForm, CertIndigencyForm, CertNonOperationForm, CertResidencyForm, CertSoloParentForm
+from .models import CertTribal, Brgy, Purok, Resident, Brgy_Officials, Household, Deceased, Ofw, Blotter, Business, BrgyClearance, BusinessClearance, CertResidency, CertGoodMoral, CertIndigency, CertNonOperation, CertSoloParent, JobSeekers
+from .forms import CustomUserChangeForm, SignupForm, CertTribalForm, BrgyForm, PurokForm, ResidentForm, brgyOfficialForm, DeceasedForm, OfwForm, BlotterForm, BusinessForm, BrgyClearanceForm, BusinessClearanceForm, CertGoodMoralForm, CertIndigencyForm, CertNonOperationForm, CertResidencyForm, CertSoloParentForm, HouseholdForm, JobSeekersForm
 from django.http import JsonResponse, Http404, HttpResponse
 from .excel_import import import_residents_from_excel
 from io import BytesIO
@@ -21,7 +21,20 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 # Create your views here.
 #@login_required
-
+month_names = {
+    1: "January",
+    2: "February",
+    3: "March",
+    4: "April",
+    5: "May",
+    6: "June",
+    7: "July",
+    8: "August",
+    9: "September",
+    10: "October",
+    11: "November",
+    12: "December"
+}
 def logout_view(request):
     logout(request)
     return redirect('login')
@@ -90,7 +103,8 @@ def index(request):
     thisYear = datetime.now().year 
 
     resident = Resident.objects.all()
-    household = Resident.objects.exclude(house_no__isnull=True).values('house_no').annotate(total_count=Count('id')).count()
+    household = Household.objects.all().count()
+    # household = Resident.objects.exclude(house_no__isnull=True).values('house_no').annotate(total_count=Count('id')).count()
     business = Business.objects.all()
     brgyclearance = BrgyClearance.objects.all()
     businessclearance = BusinessClearance.objects.all()
@@ -154,7 +168,8 @@ def index(request):
 
         
 
-    resident_graph_data = resident.values('purok__purok_name').annotate(total_count=Count('purok')).distinct()
+    # resident_graph_data = resident.values('purok__purok_name').annotate(total_count=Count('purok')).distinct()
+    resident_graph_data = Resident.objects.values('house_no__purok__purok_name').annotate(total_count=Count('id'))
     resident_count = resident.count()
     business_active_count = business.filter(status='ACTIVE').count()
     business_inactive_count = business.filter(status='INACTIVE').count()
@@ -299,21 +314,21 @@ def report_body(p, y_position, line_height, purok_id, residenden):
     titulo = ""
     if purok_id != '0':
         if residenden == "Sr":
-            residents = Resident.objects.filter(Q(purok=purok_id) & Q(birth_date__lt=date.today() - relativedelta(years=+60)))
+            residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(birth_date__lt=date.today() - relativedelta(years=+60)))
             titulo = "All Senior Citizens in " + Purok.objects.filter(pk=purok_id).first().purok_name
         elif residenden == "Solo":
-            residents = Resident.objects.filter(Q(purok=purok_id) & Q(solo_parent=True))
+            residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(solo_parent=True))
             titulo = "All Solo Parents in " + Purok.objects.filter(pk=purok_id).first().purok_name
         elif residenden == "pwd":
-             residents = Resident.objects.filter(Q(purok=purok_id) & Q(pwd=True))
+             residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(pwd=True))
              titulo = "All Persons with disability in " + Purok.objects.filter(pk=purok_id).first().purok_name
         elif residenden == "voter":
-            residents = Resident.objects.filter(Q(purok=purok_id) & Q(voter=True))
+            residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(voter=True))
             titulo = "All Registered Voters in " + Purok.objects.filter(pk=purok_id).first().purok_name
         else:
-            residents = Resident.objects.filter(purok=purok_id)
+            residents = Resident.objects.filter(house_no__purok=purok_id)
             titulo = Purok.objects.filter(pk=purok_id).first().purok_name
-        # residents = Resident.objects.filter(purok=purok_id)
+        # residents = Resident.objects.filter(house_no__purok=purok_id)
     else:
         if residenden == "Sr":
             residents = Resident.objects.filter(birth_date__lt=date.today() - relativedelta(years=+60)) 
@@ -366,7 +381,7 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         p.drawString(50, y_position, f"{i}. {resident.f_name} {resident.l_name}")
         p.drawString(230, y_position, f"{calculate_age(resident.birth_date)}")
         p.drawString(270, y_position, f"{resident.gender}")
-        p.drawString(340, y_position, f"{resident.address}")
+        p.drawString(340, y_position, f"{resident.house_no.address}")
         # p.line(50, y_position - 5, 550, y_position - 5)
         y_position -= line_height
     return p
@@ -768,15 +783,19 @@ def report_body_businessClearance_list(p, y_position, line_height, dateFrom, dat
 def report_body_household(p, y_position, line_height, purok_id):
     titulo = ""
     if purok_id != '0':
-            residents = Resident.objects.filter(purok=purok_id).order_by("house_no")
-            titulo = Purok.objects.filter(pk=purok_id).first().purok_name
-        # residents = Resident.objects.filter(purok=purok_id)
+        households = Household.objects.filter(purok=purok_id).order_by("house_no")
+        # residents = Resident.objects.filter(house_no=purok_id).order_by("house_no")
+        titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        # residents = Resident.objects.filter(house_no__purok=purok_id)
     else:
-            residents = Resident.objects.all().order_by("house_no")
-            titulo = ""
+        households = Household.objects.all().order_by("house_no")
+        # residents = Resident.objects.filter(house_no=purok_id).order_by("house_no")
+        # titulo = Purok.objects.filter(pk=purok_id).first().purok_name
+        # residents = Resident.objects.all().order_by("house_no")
+        titulo = ""
     
     # residents = Resident.objects.all()
-    total = residents.count()
+    total = households.count()
     current_date = datetime.now().date()
     def draw_header():
         p.setFont("Helvetica-Bold", 16) 
@@ -796,28 +815,32 @@ def report_body_household(p, y_position, line_height, purok_id):
           
     draw_header()
     y_position -= line_height
-        
-    previous_house_no = None  # Initialize previous_house_no
-    for i, resident in enumerate(residents, start=1):
-        if y_position <= 50:
-            p.showPage()  # Start a new page
-            y_position = 650  # Reset Y position for the new page
-            draw_header()  # Draw row header for the new page
-            report_header(p, y_position)
+    no = 0    
+    # previous_house_no = None  # Initialize previous_house_no
+    for i, household in enumerate(households, start=1):
+        house_no = household.house_no
+        residents = Resident.objects.filter(house_no=household)
+        for resident in residents:
+            no += 1
+            if y_position <= 50:
+                p.showPage()  # Start a new page
+                y_position = 650  # Reset Y position for the new page
+                draw_header()  # Draw row header for the new page
+                report_header(p, y_position)
+                y_position -= line_height
+            p.setFont("Helvetica", 10)
+            p.drawString(50, y_position, f"{no}. {house_no}")
+            p.drawString(160, y_position, f"{resident.f_name} {resident.l_name}")
+            p.drawString(300, y_position, f"{calculate_age(resident.birth_date)}")
+            p.drawString(360, y_position, f"{resident.gender}")
+            p.drawString(440, y_position, f"{household.purok}")
+
+            # if previous_house_no != f"{resident.house_no}":
+            
+                # previous_house_no = f"{resident.house_no}"
+            # p.line(50, y_position - 5, 550, y_position - 5)
             y_position -= line_height
-
-        p.setFont("Helvetica", 10)
-        p.drawString(50, y_position, f"{i}. {resident.house_no}")
-        p.drawString(160, y_position, f"{resident.f_name} {resident.l_name}")
-        p.drawString(300, y_position, f"{calculate_age(resident.birth_date)}")
-        p.drawString(360, y_position, f"{resident.gender}")
-        p.drawString(440, y_position, f"{resident.purok}")
-
-        if previous_house_no != f"{resident.house_no}":
-            p.line(50, y_position + 15, 550, y_position + 15)
-            previous_house_no = f"{resident.house_no}"
-        # p.line(50, y_position - 5, 550, y_position - 5)
-        y_position -= line_height
+        p.line(50, y_position + 15, 550, y_position + 15)
     return p
 
 def report_body_blotter(p, y_position, line_height, status):
@@ -829,7 +852,7 @@ def report_body_blotter(p, y_position, line_height, status):
         else:
             blotter = Blotter.objects.filter(status=status)
             titulo = "Solved"
-        # residents = Resident.objects.filter(purok=purok_id)
+        # residents = Resident.objects.filter(house_no__purok=purok_id)
     else:
             blotter = Blotter.objects.all()
             titulo =""
@@ -971,15 +994,15 @@ def report_body_business(p, y_position, line_height, purok_id, status):
     titulo = ""
     if purok_id != '0':
         if status == "ACTIVE":
-            business = Business.objects.filter(Q(purok=purok_id) & Q(status='ACTIVE'))
+            business = Business.objects.filter(Q(house_no__purok=purok_id) & Q(status='ACTIVE'))
             titulo = "All Active Business in " + Purok.objects.filter(pk=purok_id).first().purok_name
         elif status == "INACTIVE":
-            business = Business.objects.filter(Q(purok=purok_id) & Q(status='INACTIVE'))
+            business = Business.objects.filter(Q(house_no__purok=purok_id) & Q(status='INACTIVE'))
             titulo = Purok.objects.filter(pk=purok_id).first().purok_name
         else:
             business = Business.objects.filter(purok=purok_id)
             titulo = Purok.objects.filter(pk=purok_id).first().purok_name
-        # residents = Resident.objects.filter(purok=purok_id)
+        # residents = Resident.objects.filter(house_no__purok=purok_id)
     else:
         if status == "ACTIVE":
             business = Business.objects.filter(status='ACTIVE')
@@ -1084,6 +1107,244 @@ def report_brgyOfficials(p, y_position, footer_text):
     p.setFont("Helvetica", 10)
     p.drawCentredString(115, footer_text - 20, "Valid for 6 months from this date.")
 
+def report_body_Oath(p, y_position, line_height, pk):
+    
+    def get_day_with_suffix(day):
+        if 4 <= day <= 20 or 24 <= day <= 30:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        return f"{day}{suffix}"
+    jobseekers = JobSeekers.objects.get(pk=pk)
+    brgy = Brgy.objects.first()
+    brgy_officials = Brgy_Officials.objects.first()
+    current_date = datetime.now().date()
+    formatted_day = get_day_with_suffix(current_date.day)
+    p.setStrokeColor(colors.black)  # Set the frame color
+    p.rect(30, 40, 530, 655)
+    def draw_header():
+        p.setFont("Helvetica-Bold", 13) 
+        p.drawCentredString(290, y_position + 50, "OFFICE OF THE PUNONG BARANGAY")       
+        p.setFont("Helvetica-Bold", 12)
+        p.line(30, y_position + 80, 560, y_position + 80)
+        p.line(40, y_position + 77, 550, y_position + 77)     
+        p.setFont("Times-Bold", 25)
+        p.drawCentredString(290, y_position, "OATH OF UNDERTAKING")
+        # p.line(200, y_position + 20, 560, y_position + 20) 
+        # p.line(200, 695, 200, 40)
+         # Set the width and height for the paragraph
+        x, y = 50, y_position  # Starting position
+        
+        # p.setFont("Helvetica", 11.25)
+        # p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
+        
+        content_lines = [
+            f"This is to certify that, Mr/Mrs. {jobseekers.resident}, a resident of {jobseekers.resident.house_no.address}, {brgy.brgy_name}, {brgy.municipality} for (years/months) availing the benefits of Republic Act 11261.",    
+            f"Otherwise known as the first Time jobseekers Act of 2019 do hereby declare, agree and undertake to abide and be bound by the following:",     
+            f"1. That this is the first time that I will actively look for a job, and  therefore requesting that a Barangay Certificate be issued in my favor to avail the benefit of the law;",
+            f"2. That I am aware that the benefit anmd priviledge/s under said law shall be valid only for one (1) year from the date that the barangay issued.",
+            f"3. That I can avail the benefits of the law only once;",
+            f"4. That I understand that my personal information shall be included in the Roster/List of first Time Jobseekers and will not be used for any unlawful purpose;",
+            f"5. That I will inform and/or report to the Barangay personally, through text or the other means, or through my family/relatives once I get employed; and",
+            f"6. That iam not beneficiary of the jobstart program under R.A. No. 10889 and other laws give me similar exemptions for the documents or transactions exempted under R.A. 11261",
+            f"7. That if issued the request Certification, I will not use the same in any fraud, neither falsity nor help and/or assist in the fabrication of the said certification.",
+            f"8. That this undertaking is made solely for the purpose of obtaining a Barangay Certificate consistent with the objective of R.A. 11261 and not for any other purpose.",
+            f"9. That this consent to the use of my personal information pursuant of the Data Privacy Act and other applicable laws, rules, and regulations.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay {brgy.brgy_name} {brgy.municipality}, Cagayan.",
+        ]
+        indentation = "              "     
+        text = p.beginText(x, y)
+        text.setFont("Helvetica", 11.25)
+        max_width = 500
+
+        # for i, line in enumerate(content_lines):
+        #     if i in (0, 1, len(content_lines) - 1):
+        #         indented_line = indentation + line
+        #     else:
+        #         indented_line = line
+
+        #     words = indented_line.split()
+        #     current_line = indentation
+        #     for word in words:
+        #         test_line = current_line + " " + word
+        #         width = p.stringWidth(test_line, "Helvetica", 11.25)
+        #         if width <= max_width:
+        #             current_line = test_line
+        #         else:
+        #             p.setFont("Helvetica", 11.25)
+        #             p.drawString(x, y, current_line)
+        #             y -= 30
+        #             current_line = indentation + word
+        #     p.drawString(x, y, current_line)
+        #     y -= 30
+
+
+        # Write wrapped text to the canvas
+        for i, line in enumerate(content_lines):
+        # for line in content_lines:
+            
+
+            words = line.split()
+            if not words:
+                continue
+            if i in (0, 1, len(content_lines) - 1):
+                current_line = indentation
+            else:
+                current_line = ""
+                
+            # words = line.split()
+            #  
+            # current_line = indentation
+            
+            for word in words:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= 15  # Move to the next line
+                    current_line = word # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 20
+
+
+        # Add the content lines to the TextObject
+        # for line in content_lines:
+        #     text.textLine(line)
+        
+        # Draw the TextObject on the canvas
+        p.drawText(text)
+
+        p.setFont("Helvetica-Bold", 12)
+        captain_name = str(brgy_officials.brgy_Captain).upper()
+        # Calculate the width of the text
+        text_width = p.stringWidth(f"HON. {captain_name}", "Helvetica", 12)
+
+        # Calculate the starting position to center the text
+        x_position = 215 + ((180 - text_width) / 2)
+
+        # Draw the centered text
+        # p.drawCentredString(290, 305, f"HON. {captain_name}")  
+        # p.drawString(x_position, 305, f"HON. {captain_name}")
+        p.setFont("Helvetica-Bold", 10)
+        p.drawCentredString(115, 160, "First Time Job Seeker")
+        # p.drawString(250, 290, "PUNONG BARANGAY")
+        p.line(50, 170, 180, 170)
+
+        p.setFont("Helvetica-Oblique", 8.25)
+        p.drawString(50, 125, "Witnessed by:")
+        p.setFont("Helvetica-Bold", 10)
+        p.drawCentredString(115, 90, "Barangay Officials")  
+        # p.drawString(265, 200, "Barangay Officials")
+        p.line(50, 100, 180, 100)
+        
+    draw_header()
+    y_position -= line_height
+
+    return p
+
+def report_body_JobSeekers(p, y_position, line_height, pk):
+    
+    def get_day_with_suffix(day):
+        if 4 <= day <= 20 or 24 <= day <= 30:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        return f"{day}{suffix}"
+    jobseekers = JobSeekers.objects.get(pk=pk)
+    brgy = Brgy.objects.first()
+    brgy_officials = Brgy_Officials.objects.first()
+    current_date = datetime.now().date()
+    formatted_day = get_day_with_suffix(current_date.day)
+    p.setStrokeColor(colors.black)  # Set the frame color
+    p.rect(30, 40, 530, 655)
+    def draw_header():
+        p.setFont("Helvetica-Bold", 13) 
+        p.drawCentredString(290, y_position + 50, "OFFICE OF THE PUNONG BARANGAY")       
+        p.setFont("Helvetica-Bold", 12)
+        p.line(30, y_position + 80, 560, y_position + 80)
+        p.line(40, y_position + 77, 550, y_position + 77)     
+        p.setFont("Times-Bold", 25)
+        p.drawCentredString(290, y_position, "C E R T I F I C A T I O N")
+        # p.line(200, y_position + 20, 560, y_position + 20) 
+        # p.line(200, 695, 200, 40)
+         # Set the width and height for the paragraph
+        x, y = 50, y_position  # Starting position
+        
+        # p.setFont("Helvetica", 11.25)
+        # p.drawString(205, y_position, "TO WHOM IT MAY CONCERN:")
+        y -= line_height
+        y -= line_height
+        y -= line_height
+        
+        content_lines = [
+            f"This is to certify that, Mr/Mrs. {jobseekers.resident}, a resident of {jobseekers.resident.house_no.address}, {brgy.brgy_name}, {brgy.municipality}, Cagayan, and is qualified to avail of R.A. 11261 or the First Time Job Seekers Assistance Act of 2019.",
+            
+            f"This is to certify further that the holder/bearer was informed of his/her rights, including the duties and responsibilities accorded bt R.A. 11261 through the oath of undertaking he/she has signed and executed in the presence of Barangay Officials.",
+            
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+        ]
+        indentation = "              "     
+        text = p.beginText(x, y)
+        text.setFont("Helvetica", 11.25)
+        max_width = 500
+        # Write wrapped text to the canvas
+        for line in content_lines:
+            words = line.split()  # Split the line into words
+            if not words:
+                continue  # Skip empty lines
+            current_line = indentation  # Start with the first word
+            for word in words[0:]:
+                test_line = current_line + " " + word
+                width = p.stringWidth(test_line, "Helvetica", 11.25)
+                if width <= max_width:
+                    current_line = test_line  # Add word if within width
+                else:
+                    p.setFont("Helvetica", 11.25)
+                    p.drawString(x, y, current_line)  # Draw the line
+                    y -= line_height  # Move to the next line
+                    current_line = word  # Start a new line with the current word
+            p.drawString(x, y, current_line)
+            y -= 50
+        # Add the content lines to the TextObject
+        # for line in content_lines:
+        #     text.textLine(line)
+        
+        # Draw the TextObject on the canvas
+        p.drawText(text)
+
+        p.setFont("Helvetica-Bold", 12)
+        captain_name = str(brgy_officials.brgy_Captain).upper()
+        # Calculate the width of the text
+        text_width = p.stringWidth(f"HON. {captain_name}", "Helvetica", 12)
+
+        # Calculate the starting position to center the text
+        x_position = 215 + ((180 - text_width) / 2)
+
+        # Draw the centered text
+        p.drawCentredString(290, 305, f"HON. {captain_name}")  
+        # p.drawString(x_position, 305, f"HON. {captain_name}")
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(290, 290, "PUNONG BARANGAY")
+        # p.drawString(250, 290, "PUNONG BARANGAY")
+        p.line(190, 300, 390, 300)
+
+        p.setFont("Helvetica", 8.25)
+        # p.drawString(200, 180, "APPROVED:")
+        p.setFont("Helvetica", 10)
+        p.drawCentredString(290, 200, "Barangay Officials")  
+        # p.drawString(265, 200, "Barangay Officials")
+        p.line(190, 210, 390, 210)
+        
+    draw_header()
+    y_position -= line_height
+
+    return p
+
 def report_body_brgyClearance(p, y_position, line_height, pk):
     brgyclearance = BrgyClearance.objects.get(pk=pk)
     resident = brgyclearance.resident
@@ -1117,7 +1378,7 @@ def report_body_brgyClearance(p, y_position, line_height, pk):
             " ",
             f"FULL NAME: {brgyclearance.resident}",
             " ",
-            f"ADDRESS: {resident.address}",
+            f"ADDRESS: {resident.house_no.address}",
             " ",
             f"CIVIL STATUS: {resident.civil_status}",
             " ",
@@ -1201,9 +1462,9 @@ def report_body_tribal(p, y_position, line_height, pk):
         y -= line_height
         
         content_lines = [
-            f"This is to certify that, Mr/Mrs. {tribal.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} and a resident of Camasi, Peñablanca, Cagayan, {resident.purok} Belongs to {tribal.tribe} of INDIGENOUS CULTURAL COMMUNITTIES / INDIGENOUS PEOPLE.",
+            f"This is to certify that, Mr/Mrs. {tribal.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.civil_status} and a resident of Camasi, Peñablanca, Cagayan, {resident.house_no.purok} Belongs to {tribal.tribe} of INDIGENOUS CULTURAL COMMUNITTIES / INDIGENOUS PEOPLE.",
             f"This is to certify further that {tribal.mother} mother of {tribal.resident} as well as their ancestors are all recognized members of {tribal.tribe} known to be natives of Camasi Peñablanca, Cagayan.",
-            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
         ]
         indentation = "              "     
         text = p.beginText(170, y)
@@ -1303,7 +1564,7 @@ def report_body_goodmoral(p, y_position, line_height, pk):
 
             f"This certification is issued upon request of the above-named person for {goodmoral.purpose} purposes.",
 
-            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
 
         ]
         
@@ -1395,11 +1656,11 @@ def report_body_residency(p, y_position, line_height, pk):
 
             f"This is to certify that, {residency.resident}, of legal age ,{resident.civil_status}, {resident.citizenship}, whose specimen signature appears below is a PERMANENT RESIDENT of this Barangay.",
 
-            f"Based on records of this office, he/she has been residing at {resident.purok} Camasi Peñablanca, Cagayan.",
+            f"Based on records of this office, he/she has been residing at {resident.house_no.purok} Camasi Peñablanca, Cagayan.",
 
             f"This certification is issued upon request of the above-named person for {residency.purpose} purposes.",
 
-            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
 
         ]
         
@@ -1491,11 +1752,11 @@ def report_body_soloparent(p, y_position, line_height, pk):
         y -= line_height
         content_lines = [
 
-            f"This is to certify that, {soloparent.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.gender}, {resident.civil_status}, and a resident of {resident.purok} Camasi Peñablanca, whose specimen signature appears below is a SOLO PARENT who soley provides parental/maternal care and support to her/his child/children.",
+            f"This is to certify that, {soloparent.resident}, 23 years old, {resident.citizenship}, of legal age, {resident.gender}, {resident.civil_status}, and a resident of {resident.house_no.purok} Camasi Peñablanca, whose specimen signature appears below is a SOLO PARENT who soley provides parental/maternal care and support to her/his child/children.",
 
             f"              This certification is issued upon request of the above-named person for {soloparent.purpose} purposes.",
 
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"              Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
 
         ]
         
@@ -1592,7 +1853,7 @@ def report_body_indigency(p, y_position, line_height, pk):
 
             f"              This certification is issued upon request of the above-named person for {indigency.purpose} purposes.",
 
-            f"              Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"              Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
         ]
         
         indentation = "              "     
@@ -1689,7 +1950,7 @@ def report_body_businessClearance(p, y_position, line_height, pk):
 
             "THIS FURTHER CERTIFIES that the issuance of this Business Barangay Clearance is pursuant to Section 152 'c' of RA 7160 wherein the city/municipality shall never issue any permit or license for any business or activity is located or conducted",
 
-            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
 
         ]
         
@@ -1775,7 +2036,7 @@ def report_body_nonOperation(p, y_position, line_height, pk):
 
             f"This certification is issued upon request of the above-named person for {nonoperation.purpose} purposes.",
 
-            f"Issued this {formatted_day} day of {current_date.month}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
+            f"Issued this {formatted_day} day of {month_names.get(current_date.month)}, {current_date.year}. at Barangay Camasi, Peñablanca, Cagayan.",
 
         ]
         
@@ -1857,6 +2118,38 @@ def pdf_ofw_list(request):
     report_header(p, y_position)   
 
     report_body_ofw(p, y_position, line_height, purok)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_JobSeekers(request, pk):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_JobSeekers(p, y_position, line_height, pk)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_Oath(request, pk):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_Oath(p, y_position, line_height, pk)
 
      
     p.save()
@@ -2227,6 +2520,29 @@ def BlotterList(request):
     return render(request, 'blotter/BlotterList.html', {'blotter': blotter})
 
 @login_required
+def JobSeekersList(request):      
+    jobseekers = JobSeekers.objects.annotate(
+        age=ExpressionWrapper(
+            date.today().year - F('resident__birth_date__year') - 
+            Case(
+                When(
+                    resident__birth_date__month__gt=date.today().month,
+                    then=Value(1)
+                ),
+                When(
+                    resident__birth_date__month=date.today().month,
+                    resident__birth_date__day__gt=date.today().day,
+                    then=Value(1)
+                ),
+                default=Value(0),
+                output_field=IntegerField()
+            ),
+            output_field=IntegerField()
+        )
+    ).order_by('-date_created')
+    return render(request, 'jobseekers/JobSeekersList.html', {'jobseekers': jobseekers})
+
+@login_required
 def BrgyClearanceList(request):      
     brgyclearance = BrgyClearance.objects.all().order_by('-date_created')
     return render(request, 'brgyclearance/BrgyClearanceList.html', {'brgyclearance': brgyclearance})
@@ -2298,16 +2614,18 @@ def ResidentList(request):
             ),
             output_field=IntegerField()
         )
-    )
+    ).order_by("house_no")
            
     return render(request, 'resident/ResidentList.html', {'resident': resident,'purok_list': purok_list})
 
 @login_required
 def HouseholdList(request):      
-    resident = Resident.objects.exclude(house_no__isnull=True)
+    # resident = Resident.objects.exclude(house_no__isnull=True)
     purok_list= Purok.objects.all().order_by("purok_name") 
-    household = resident.values('house_no').annotate(total_count=Count('id')).order_by('house_no')
-    return render(request, 'household/HouseholdList.html', {'household': household, 'purok_list': purok_list})
+    # members = resident.values('house_no').annotate(total_count=Count('id')).order_by('house_no')
+    household = Household.objects.all().order_by("house_no")
+    member_count = household.annotate(resident_count=Count('resident'))
+    return render(request, 'household/HouseholdList.html', {'member_count': member_count, 'purok_list': purok_list, 'household': household})
 
 @login_required
 def filter_resident(request):
@@ -2434,6 +2752,54 @@ def AdEdPurok(request, pk):
         else:
             form = PurokForm()
         return render(request, 'purok/AdEdPurok.html', {'form': form})
+    
+@login_required    
+def AdEdHousehold(request, pk):
+    try:
+        household = get_object_or_404(Household, pk=pk)
+        if request.method == 'POST':
+            form = HouseholdForm(request.POST, request.FILES, instance=household)
+            if form.is_valid():
+                form.save()
+                return redirect('HouseholdList')
+        else:
+            form = HouseholdForm(instance=household)
+        return render(request, 'household/AdEdHousehold.html', {'form': form, 'household': household})
+    except Http404:  
+        if request.method == 'POST':
+            form = HouseholdForm(request.POST, request.FILES)
+            if form.is_valid():
+                form.save()
+                return redirect('HouseholdList')
+        else:
+            form = HouseholdForm()
+        return render(request, 'household/AdEdHousehold.html', {'form': form})
+    
+@login_required    
+def AdEdJobSeekers(request, pk):
+    try:
+        jobseekers = get_object_or_404(JobSeekers, pk=pk)
+        
+        if request.method == 'POST':
+            form = JobSeekersForm(request.POST, request.FILES, instance=jobseekers)
+            if form.is_valid():
+                form.save()
+                # pdf_buffer = generate_pdf_report()
+                # return pdf_report_view(pdf_buffer)
+                return redirect('JobSeekersList')
+        else:
+            form = JobSeekersForm(instance=jobseekers)
+        return render(request, 'jobseekers/AdEdJobSeekers.html', {'form': form, 'jobseekers': jobseekers})
+    except Http404:  
+        resident = Resident.objects.all()
+        if request.method == 'POST':
+            form = JobSeekersForm(request.POST, request.FILES)
+            if form.is_valid():
+                form.save()                
+                return redirect('JobSeekersList')               
+        else:
+            form = JobSeekersForm()
+        return render(request, 'jobseekers/AdEdJobSeekers.html', {'form': form, 'resident': resident})
 
 @login_required    
 def AdEdBrgyClearance(request, pk):

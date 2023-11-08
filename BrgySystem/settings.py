@@ -83,20 +83,34 @@ WSGI_APPLICATION = 'BrgySystem.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.parse(env('DATABASE_URL'))
-}
+# DATABASES = {
+#     'default': dj_database_url.parse(env('DATABASE_URL'))
+# }
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'dbBrgy',
-#         'USER': 'postgres',
-#         'PASSWORD': 'kapyanammuPassword',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
+#         'ENGINE': 'mssql',
+#         'NAME': 'angkulaw',
+#         'USER': 'angkulaw',
+#         'PASSWORD': 'angkulawPassword',
+#         'HOST': 'LAPTOP-B2TRSGKJ',
+#         'PORT': '',
+#         'OPTIONS': {
+#                 'driver': 'ODBC Driver 17 for SQL Server',
+#                 'isolation_level': 'READ UNCOMMITED'
+#         },
 #     }
 # }
-
+# DATABASE_CONNECTION_POOLING = False
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'dbBrgy',
+        'USER': 'postgres',
+        'PASSWORD': 'kapyanammuPassword',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -131,9 +145,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS  = (os.path.join(BASE_DIR, 'static'),)
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 

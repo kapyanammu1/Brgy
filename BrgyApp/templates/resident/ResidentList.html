@@ -22,7 +22,7 @@
             <div class="card-body">
             </br>
               <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'AdEdResident' 0 %}">Add New Resident</a></button>
-              <button type="button" class="btn btn-info rounded-pill view-details-btn" data-toggle="modal" data-target="#popupForm">Print</button>
+              <button type="button" class="btn btn-info rounded-pill view-details-btn" data-toggle="modal" data-target="#popupForm">Print List</button>
               <!-- <button type="button" class="btn btn-info rounded-pill"><a href="{% url 'resident_list' %}" target="_blank">Print</a></button>  -->
               <table class="table datatable">
                 <thead>
@@ -41,8 +41,8 @@
                     <td>{{ residents.l_name }}, {{ residents.f_name }} {{ residents.m_name }}</td>
                     <td>{{ residents.gender }}</td>
                     <td>{{ residents.age }}</td>
-                    <td>{{ residents.purok }}</td>
-                    <td>{{ residents.address }}</td>
+                    <td>{{ residents.house_no.purok }}</td>
+                    <td>{{ residents.house_no.address }}</td>
                     <td scope="col">
                       <button type="button" class="btn btn-light rounded-pill"><a href="{% url 'AdEdResident' residents.pk %}">View/Update</a></button>
                       <button type="button" class="btn btn-light rounded-pill" onclick="deleteBrgy({{ residents.pk }})">Delete</button>                      
