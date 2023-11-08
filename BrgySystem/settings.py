@@ -81,11 +81,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'BrgySystem.wsgi.application'
 
 # Database
-https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': dj_database_url.parse(env('DATABASE_URL'))
-# }
+DATABASES = {
+    'default': dj_database_url.parse(env('DATABASE_URL'))
+}
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'mssql',
