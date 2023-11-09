@@ -71,6 +71,7 @@ urlpatterns = [
     path('pdf_ofw_list/', views.pdf_ofw_list, name='pdf_ofw_list'),
     path('pdf_deceased_list/', views.pdf_deceased_list, name='pdf_deceased_list'),
     path('pdf_business_list/', views.pdf_business_list, name='pdf_business_list'),
+    path('pdf_JobSeekers_list/', views.pdf_JobSeekers_list, name='pdf_JobSeekers_list'),
     path('pdf_brgyClearance_list/', views.pdf_brgyClearance_list, name='pdf_brgyClearance_list'),
     path('pdf_certTribal_list/', views.pdf_certTribal_list, name='pdf_certTribal_list'),
     path('pdf_certNonOperation_list/', views.pdf_certNonOperation_list, name='pdf_certNonOperation_list'),

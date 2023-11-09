@@ -114,6 +114,7 @@ def index(request):
     goodmoral = CertGoodMoral.objects.all()
     nonoperation = CertNonOperation.objects.all()
     tribal = CertTribal.objects.all()
+    jobseekers = JobSeekers.objects.all()
 
     # date_filter = request.GET.get('elementValue')  # Assuming you're using GET requests
     # final_date = 'Today'
@@ -133,6 +134,7 @@ def index(request):
     goodmoral_total = goodmoral.filter(date_created__year=thisYear).aggregate(total_amount=Sum('or_amount'), total_count=Count('id'))
     nonoperation_total = nonoperation.filter(date_created__year=thisYear).aggregate(total_amount=Sum('or_amount'), total_count=Count('id'))
     tribal_total = tribal.filter(date_created__year=thisYear).aggregate(total_amount=Sum('or_amount'), total_count=Count('id'))
+    jobseekers_total = jobseekers.filter(date_created__year=thisYear).aggregate(total_count=Count('id'))
     
 
 
@@ -181,7 +183,7 @@ def index(request):
         'businessClearance_total': businessClearance_total,'residency_total': residency_total,
         'indigency_total': indigency_total,'soloparent_total': soloparent_total,
         'goodmoral_total': goodmoral_total,'nonoperation_total': nonoperation_total,
-        'tribal_total': tribal_total,'months': months,
+        'tribal_total': tribal_total,'jobseekers_total': jobseekers_total,'months': months,
         'thisYear': thisYear,'series1': series1,
         'series2': series2,'series3': series3,'series4': series4,
         'series5': series5,'series6': series6,
@@ -529,6 +531,58 @@ def report_body_SoloParent_list(p, y_position, line_height, dateFrom, dateTo):
         p.drawString(230, y_position, f"{clearance.purpose}")
         p.drawString(320, y_position, f"{clearance.date_created.strftime('%Y-%m-%d')}")
         p.drawString(450, y_position, f"{clearance.or_amount}")
+        # p.line(50, y_position - 5, 550, y_position - 5)
+        y_position -= line_height
+    return p
+
+def report_body_JobSeekers_list(p, y_position, line_height, dateFrom, dateTo):
+    titulo = ""
+    if dateFrom != dateTo:
+        titulo = "(" + str(dateFrom) + ")" + " to " + "(" + str(dateTo) + ")"
+    else:
+        titulo = "(" + str(dateFrom) + ")"
+    
+    jobseekers = JobSeekers.objects.filter(date_created__range=[dateFrom, dateTo])
+    # total_amount = certGoodMoral.aggregate(total_amount=Sum('or_amount'))
+    # total_amount_value = total_amount.get('total_amount', 0)
+    total = jobseekers.count()
+    # current_date = datetime.now().date()
+    
+    def draw_header():
+        p.setFont("Helvetica-Bold", 16) 
+        p.drawCentredString(290, y_position + 37, titulo)
+        p.drawCentredString(290, y_position + 55, "FIRST TIME JOB SEEKERS LIST")          
+        p.setFont("Helvetica", 12)
+        p.drawString(50, y_position + 20, f"Total Count: {total}")
+        # p.drawString(420, y_position + 20, f"Total Amount: {total_amount_value}")
+        p.setFont("Helvetica-Bold", 12)
+        p.line(50, y_position + 15, 550, y_position + 15)
+        p.drawString(50, y_position, "DATE")
+        p.drawString(120, y_position, "NAME")
+        p.drawString(230, y_position, "AGE")
+        p.drawString(280, y_position, "GENDER")
+        p.drawString(350, y_position, "ADDRESS")
+        p.line(50, y_position - 5, 550, y_position - 5)    
+          
+    draw_header()
+    y_position -= line_height
+        
+    
+    for i, seekers in enumerate(jobseekers, start=1):
+        if y_position <= 50:
+            p.showPage()  # Start a new page
+            y_position = 650  # Reset Y position for the new page
+            draw_header()  # Draw row header for the new page
+            report_header(p, y_position)
+            y_position -= line_height
+
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"{i}. {seekers.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(120, y_position, f"{seekers.resident}")
+        p.drawString(230, y_position, f"{calculate_age(seekers.resident.birth_date)}")
+        # p.drawString(320, y_position, f"{seekers.date_created.strftime('%Y-%m-%d')}")
+        p.drawString(280, y_position, f"{seekers.resident.gender}")
+        p.drawString(350, y_position, f"{seekers.resident.house_no.address}")
         # p.line(50, y_position - 5, 550, y_position - 5)
         y_position -= line_height
     return p
@@ -2221,6 +2275,24 @@ def pdf_brgyClearance_list(request):
     report_header(p, y_position)   
 
     report_body_brgyClearance_list(p, y_position, line_height, fromDate, toDate)
+
+     
+    p.save()
+    buffer.seek(0)
+    return pdf_report_view(buffer)
+
+def pdf_JobSeekers_list(request):
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    p.setFont("Helvetica", 12)
+    fromDate = request.GET.get('fromDate')
+    toDate = request.GET.get('toDate')
+    y_position = 650  # Starting Y position for the first line
+    line_height = 20  # Height of each line  
+
+    report_header(p, y_position)   
+
+    report_body_JobSeekers_list(p, y_position, line_height, fromDate, toDate)
 
      
     p.save()

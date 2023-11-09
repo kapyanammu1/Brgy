@@ -368,7 +368,7 @@
            <!-- Total Clearances and Certificates -->
             <div class="card recent-sales overflow-auto">
 
-              <div class="filter">
+              <!-- <div class="filter">
                 <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                   <li class="dropdown-header text-start">
@@ -379,7 +379,7 @@
                   <li><a class="dropdown-item" onclick="MonthClick(event)">This Month</a></li>
                   <li><a class="dropdown-item" onclick="YearClick(event)">This Year</a></li>
                 </ul>
-              </div>
+              </div> -->
 
               <div class="card-body pb-0">
                 <h5 class="card-title">Total Clearances and Certificates<span>| 2023</span></h5>
@@ -432,6 +432,11 @@
                       <td>Certificate of Tribal Membership</td>
                       <td>{{tribal_total.total_count}}</td>
                       <td>{{tribal_total.total_amount}}</td>
+                    </tr>
+                    <tr>                      
+                      <td>Certificate of First Time Job Seekers</td>
+                      <td>{{jobseekers_total.total_count}}</td>
+                      <td>None</td>
                     </tr>
                   </tbody>
                 </table>
