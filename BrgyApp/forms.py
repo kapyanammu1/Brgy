@@ -116,7 +116,7 @@ class ResidentForm(forms.ModelForm):
                   'gender','house_no',
                   'phone_number', 'birth_date', 'birth_place',
                   'civil_status', 'religion', 'citizenship',
-                  'profession', 'education', 'voter', 'solo_parent','pwd', 'image',
+                  'profession', 'education', 'voter', 'solo_parent','pwd','indigent', 'image',
                   )
     
         widgets = {
@@ -187,6 +187,11 @@ class ResidentForm(forms.ModelForm):
     )
     pwd = forms.BooleanField(
         label="Person with Disability",
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    indigent = forms.BooleanField(
+        label="Indigent",
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )

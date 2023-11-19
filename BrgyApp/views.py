@@ -327,6 +327,9 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         elif residenden == "voter":
             residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(voter=True))
             titulo = "All Registered Voters in " + Purok.objects.filter(pk=purok_id).first().purok_name
+        elif residenden == "indigent":
+            residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(indigent=True))
+            titulo = "All Indigent in " + Purok.objects.filter(pk=purok_id).first().purok_name
         else:
             residents = Resident.objects.filter(house_no__purok=purok_id)
             titulo = Purok.objects.filter(pk=purok_id).first().purok_name
@@ -344,6 +347,9 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         elif residenden == "voter":
             residents = Resident.objects.filter(voter=True)
             titulo = "All Registered Voters"
+        elif residenden == "indigent":
+            residents = Resident.objects.filter(indigent=True)
+            titulo = "All Indigent"
         else:
             residents = Resident.objects.all()
             titulo =""
@@ -2977,6 +2983,10 @@ def AdEdCertIndigency(request, pk):
             form = CertIndigencyForm(request.POST, request.FILES, instance=certindigency)
             if form.is_valid():
                 form.save()
+
+                resident = certindigency.resident
+                resident.indigent = True
+                resident.save()
                 return redirect('CertIndigencyList')
         else:
             form = CertIndigencyForm(instance=certindigency)
@@ -2985,7 +2995,11 @@ def AdEdCertIndigency(request, pk):
         if request.method == 'POST':
             form = CertIndigencyForm(request.POST, request.FILES)
             if form.is_valid():
-                form.save()
+                certindigency = form.save()
+
+                resident = certindigency.resident
+                resident.indigent = True
+                resident.save()
                 return redirect('CertIndigencyList')
         else:
             form = CertIndigencyForm()
@@ -2999,6 +3013,9 @@ def AdEdCertSoloParent(request, pk):
             form = CertSoloParentForm(request.POST, request.FILES, instance=certsoloparent)
             if form.is_valid():
                 form.save()
+                resident = certsoloparent.resident
+                resident.solo_parent = True
+                resident.save()
                 return redirect('CertSoloParentList')
         else:
             form = CertSoloParentForm(instance=certsoloparent)
@@ -3007,7 +3024,11 @@ def AdEdCertSoloParent(request, pk):
         if request.method == 'POST':
             form = CertSoloParentForm(request.POST, request.FILES)
             if form.is_valid():
-                form.save()
+                certsoloparent = form.save()
+
+                resident = certsoloparent.resident
+                resident.solo_parent = True
+                resident.save()
                 return redirect('CertSoloParentList')
         else:
             form = CertSoloParentForm()
@@ -3021,6 +3042,9 @@ def AdEdCertNonOperation(request, pk):
             form = CertNonOperationForm(request.POST, request.FILES, instance=certnonoperation)
             if form.is_valid():
                 form.save()
+                certnonoperation = certnonoperation.business
+                certnonoperation.status = 'INACTIVE'
+                certnonoperation.save()
                 return redirect('CertNonOperationList')
         else:
             form = CertNonOperationForm(instance=certnonoperation)
@@ -3029,7 +3053,10 @@ def AdEdCertNonOperation(request, pk):
         if request.method == 'POST':
             form = CertNonOperationForm(request.POST, request.FILES)
             if form.is_valid():
-                form.save()
+                certnonoperation = form.save()
+                certnonoperation = certnonoperation.business
+                certnonoperation.status = 'INACTIVE'
+                certnonoperation.save()
                 return redirect('CertNonOperationList')
         else:
             form = CertNonOperationForm()
@@ -3043,6 +3070,9 @@ def AdEdBusinessClearance(request, pk):
             form = BusinessClearanceForm(request.POST, request.FILES, instance=businessclearance)
             if form.is_valid():
                 form.save()
+                businessclearance = businessclearance.business
+                businessclearance.status = 'ACTIVE'
+                businessclearance.save()
                 return redirect('BusinessClearanceList')
         else:
             form = BusinessClearanceForm(instance=businessclearance)
@@ -3051,7 +3081,10 @@ def AdEdBusinessClearance(request, pk):
         if request.method == 'POST':
             form = BusinessClearanceForm(request.POST, request.FILES)
             if form.is_valid():
-                form.save()
+                businessclearance = form.save()
+                businessclearance = businessclearance.business
+                businessclearance.status = 'ACTIVE'
+                businessclearance.save()
                 return redirect('BusinessClearanceList')
         else:
             form = BusinessClearanceForm()

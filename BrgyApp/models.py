@@ -42,6 +42,7 @@ class Resident(models.Model):
     voter = models.BooleanField(default=False)
     solo_parent = models.BooleanField(default=False)
     pwd = models.BooleanField(default=False)
+    indigent = models.BooleanField(default=False)
     image = models.ImageField(upload_to='item_images', blank=True, null=True)
 
     def __str__(self):
