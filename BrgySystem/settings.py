@@ -104,11 +104,11 @@ DATABASES = {
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'dbBrgy',
+#         'NAME': 'railway',
 #         'USER': 'postgres',
-#         'PASSWORD': 'kapyanammuPassword',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
+#         'PASSWORD': 'C615EFBEC-dbGGbea2e324gG*4ACBCcD',
+#         'HOST': 'roundhouse.proxy.rlwy.net',
+#         'PORT': '41433',
 #     }
 # }
 # DATABASES = {
