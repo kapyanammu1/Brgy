@@ -83,9 +83,9 @@ WSGI_APPLICATION = 'BrgySystem.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.parse(env('DATABASE_URL'))
-}
+# DATABASES = {
+#     'default': dj_database_url.parse(env('DATABASE_URL'))
+# }
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'mssql',
@@ -101,16 +101,16 @@ DATABASES = {
 #     }
 # }
 # DATABASE_CONNECTION_POOLING = False
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'dbBrgy',
-#         'USER': 'postgres',
-#         'PASSWORD': 'kapyanammuPassword',
-#         'HOST': 'localhost',
-#         'PORT': '5432',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'railway',
+        'USER': 'postgres',
+        'PASSWORD': 'C615EFBEC-dbGGbea2e324gG*4ACBCcD',
+        'HOST': 'roundhouse.proxy.rlwy.net',
+        'PORT': '41433',
+    }
+}
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
