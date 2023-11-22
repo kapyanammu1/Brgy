@@ -314,6 +314,7 @@ def report_header_landscape(p, y_position):
 
 def report_body(p, y_position, line_height, purok_id, residenden):
     titulo = ""
+    boter = False
     if purok_id != '0':
         if residenden == "Sr":
             residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(birth_date__lt=date.today() - relativedelta(years=+60)))
@@ -327,6 +328,7 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         elif residenden == "voter":
             residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(voter=True))
             titulo = "All Registered Voters in " + Purok.objects.filter(pk=purok_id).first().purok_name
+            boter = True
         elif residenden == "indigent":
             residents = Resident.objects.filter(Q(house_no__purok=purok_id) & Q(indigent=True))
             titulo = "All Indigent in " + Purok.objects.filter(pk=purok_id).first().purok_name
@@ -347,6 +349,7 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         elif residenden == "voter":
             residents = Resident.objects.filter(voter=True)
             titulo = "All Registered Voters"
+            boter = True
         elif residenden == "indigent":
             residents = Resident.objects.filter(indigent=True)
             titulo = "All Indigent"
@@ -367,11 +370,17 @@ def report_body(p, y_position, line_height, purok_id, residenden):
         p.drawString(450, y_position + 20, f"As of: {current_date}")
         p.setFont("Helvetica-Bold", 12)
         p.line(50, y_position + 15, 550, y_position + 15)
-        p.drawString(50, y_position, "NAME")
-        p.drawString(230, y_position, "AGE")
-        p.drawString(270, y_position, "GENDER")
-        p.drawString(340, y_position, "ADDRESS")
-        p.line(50, y_position - 5, 550, y_position - 5)    
+        if boter:
+            p.drawString(50, y_position, "NAME")
+            p.drawString(340, y_position, "PRECINT NO.")
+            p.line(50, y_position - 5, 550, y_position - 5)  
+        else:
+            p.drawString(50, y_position, "NAME")
+            p.drawString(230, y_position, "AGE")
+            p.drawString(270, y_position, "GENDER")
+            p.drawString(340, y_position, "ADDRESS")
+            p.line(50, y_position - 5, 550, y_position - 5)  
+          
           
     draw_header()
     y_position -= line_height
@@ -386,10 +395,14 @@ def report_body(p, y_position, line_height, purok_id, residenden):
             y_position -= line_height
 
         p.setFont("Helvetica", 10)
-        p.drawString(50, y_position, f"{i}. {resident.f_name} {resident.l_name}")
-        p.drawString(230, y_position, f"{calculate_age(resident.birth_date)}")
-        p.drawString(270, y_position, f"{resident.gender}")
-        p.drawString(340, y_position, f"{resident.house_no.address}")
+        if boter:
+            p.drawString(50, y_position, f"{i}. {resident.f_name} {resident.l_name}")
+            p.drawString(340, y_position, f"{resident.precint_no}")
+        else:
+            p.drawString(50, y_position, f"{i}. {resident.f_name} {resident.l_name}")
+            p.drawString(230, y_position, f"{calculate_age(resident.birth_date)}")
+            p.drawString(270, y_position, f"{resident.gender}")
+            p.drawString(340, y_position, f"{resident.house_no.address}")
         # p.line(50, y_position - 5, 550, y_position - 5)
         y_position -= line_height
     return p
@@ -3353,6 +3366,14 @@ def Delete_certsoloparent(request, pk):
     if request.method == 'POST':
         certsoloparent = get_object_or_404(CertSoloParent, pk=pk)
         certsoloparent.delete()
+        return JsonResponse({'message': 'Item deleted successfully.'})
+    return JsonResponse({'message': 'Invalid request method.'}, status=400)
+
+@login_required
+def Delete_jobseekers(request, pk):
+    if request.method == 'POST':
+        jobseekers = get_object_or_404(JobSeekers, pk=pk)
+        jobseekers.delete()
         return JsonResponse({'message': 'Item deleted successfully.'})
     return JsonResponse({'message': 'Invalid request method.'}, status=400)
 

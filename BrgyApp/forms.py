@@ -116,7 +116,8 @@ class ResidentForm(forms.ModelForm):
                   'gender','house_no',
                   'phone_number', 'birth_date', 'birth_place',
                   'civil_status', 'religion', 'citizenship',
-                  'profession', 'education', 'voter', 'solo_parent','pwd','indigent', 'image',
+                  'profession', 'education', 'voter', 'precint_no', 
+                  'solo_parent','pwd','fourps','indigent', 'image',
                   )
     
         widgets = {
@@ -180,6 +181,11 @@ class ResidentForm(forms.ModelForm):
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
+    precint_no = forms.CharField(
+        label="Precint No.",
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Precint No.'})
+    )
     solo_parent = forms.BooleanField(
         label="Solo Parent",
         required=False,
@@ -187,6 +193,11 @@ class ResidentForm(forms.ModelForm):
     )
     pwd = forms.BooleanField(
         label="Person with Disability",
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+    )
+    fourps = forms.BooleanField(
+        label="4ps",
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )

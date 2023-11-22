@@ -40,9 +40,11 @@ class Resident(models.Model):
     profession = models.CharField(max_length=100)
     education = models.CharField(max_length=100)
     voter = models.BooleanField(default=False)
+    precint_no = models.CharField(max_length=20)
     solo_parent = models.BooleanField(default=False)
     pwd = models.BooleanField(default=False)
     indigent = models.BooleanField(default=False)
+    fourps = models.BooleanField(default=False)
     image = models.ImageField(upload_to='item_images', blank=True, null=True)
 
     def __str__(self):

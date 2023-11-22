@@ -51,18 +51,18 @@
                         <p>{{ form.birth_place.label_tag }} {{ form.birth_place }}</p>
                         <p>{{ form.phone_number.label_tag }} {{ form.phone_number }}</p>
                         <p>{{ form.civil_status.label_tag }} {{ form.civil_status }}</p>
-                        
-                        
+                        <p>{{ form.religion.label_tag }} {{ form.religion }}</p>
+                        <p>{{ form.citizenship.label_tag }} {{ form.citizenship }}</p>
                         
                     </div>
                     <div class="col-md-6">
-                        <p>{{ form.religion.label_tag }} {{ form.religion }}</p>
-                        <p>{{ form.citizenship.label_tag }} {{ form.citizenship }}</p>
                         <p>{{ form.profession.label_tag }} {{ form.profession }}</p>
                         <p>{{ form.education.label_tag }} {{ form.education }}</p>
-                        <p>{{ form.voter.label_tag }} {{ form.voter }}</p>
+                        {{ form.voter.label_tag }} {{ form.voter }}<p></p>
+                        <p> {{ form.precint_no }}</p>
                         <p>{{ form.solo_parent.label_tag }} {{ form.solo_parent }}</p>
                         <p>{{ form.pwd.label_tag }} {{ form.pwd }}</p>
+                        <p>{{ form.fourps.label_tag }} {{ form.fourps }}</p>
                         <p>{{ form.indigent.label_tag }} {{ form.indigent }}</p>
                     </div>
                     <div class="text-center">
@@ -77,8 +77,36 @@
         </form>
       </div>
     </section>
-
+    <script src="{% static 'assets/vendor/bootstrap/js/jquery-3.6.0.min.js' %}"></script>
     <script>
+
+      $(document).ready(function() {
+          // Initially hide or disable the precint_no based on the default value of the checkbox
+          togglePrecinctVisibility();
+
+          // Add an event listener to the checkbox for changes
+          $('input[name="voter"]').change(function() {
+              // Call the function to toggle the visibility or disable status of precint_no
+              togglePrecinctVisibility();
+          });
+
+          function togglePrecinctVisibility() {
+              // Get the value of the checkbox
+              var isVoterChecked = $('input[name="voter"]').is(':checked');
+
+              // Select the precint_no field
+              var precintNoField = $('input[name="precint_no"]').closest('p');
+
+              // Toggle visibility or disable status based on the checkbox value
+              if (isVoterChecked) {
+                  precintNoField.show();  // or precintNoField.prop('disabled', false);
+              } else {
+                  precintNoField.hide();  // or precintNoField.prop('disabled', true);
+                  $('input[name="precint_no"]').val('');
+              }
+          }
+      });
+
         function previewImage(event) {
           var input = event.target;
           var preview = document.getElementById('preview-image');
